@@ -1,0 +1,10 @@
+# Reference extensions (not ours)
+/git-module-extract/
+/safe-deploy/
+
+# Build artifacts
+/xve-laravel-kit/dist/
+
+# Windows
+Thumbs.db
+desktop.ini

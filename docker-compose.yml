@@ -1,0 +1,34 @@
+services:
+  plesk:
+    image: plesk/plesk
+    container_name: plesk
+    restart: unless-stopped
+    tmpfs:
+      - /tmp
+      - /run
+      - /run/lock
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup
+      - plesk_data:/var
+      - plesk_etc:/etc
+      # Live-mount extension source for development
+      - ./xve-laravel-kit/src/plib:/usr/local/psa/admin/plib/modules/xve-laravel-kit
+      - ./xve-laravel-kit/src/htdocs:/usr/local/psa/admin/htdocs/modules/xve-laravel-kit
+      # Sbin init script — auto-runs on container start via systemd
+      - ./init-sbin.sh:/opt/init-sbin.sh:ro
+      - ./init-sbin.service:/etc/systemd/system/init-sbin.service:ro
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - apparmor=unconfined
+    cgroup: host
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8880:8880"
+      - "8443:8443"
+      - "8447:8447"
+
+volumes:
+  plesk_data:
+  plesk_etc:

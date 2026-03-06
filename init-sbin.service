@@ -1,0 +1,11 @@
+[Unit]
+Description=Initialize sbin scripts for Plesk extensions
+After=sw-cp-server.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /opt/init-sbin.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
