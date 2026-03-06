@@ -163,6 +163,7 @@ class DomainController extends pm_Controller_Action
             $this->_settings->setBranch($form->getValue('branch'));
             $this->_settings->setSharedDirs($form->getValue('shared_dirs'));
             $this->_settings->setSharedFiles($form->getValue('shared_files'));
+            $this->_settings->setDeployMode($form->getValue('deploy_mode'));
             $this->_settings->setNodePackageManager($form->getValue('node_pm'));
             foreach (array_keys(Modules_XveLaravelKit_DeploySettings::STEPS) as $step) {
                 $this->_settings->setStepEnabled($step, (bool) $form->getValue('step_' . $step));

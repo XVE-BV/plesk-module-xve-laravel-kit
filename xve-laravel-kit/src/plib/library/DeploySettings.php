@@ -162,6 +162,23 @@ class Modules_XveLaravelKit_DeploySettings
         return null;
     }
 
+    // -- Deploy mode --
+
+    const DEPLOY_MODES = ['normal', 'quiet', 'silent'];
+
+    public function getDeployMode()
+    {
+        return pm_Settings::get($this->_prefix . 'deploy_mode', 'normal');
+    }
+
+    public function setDeployMode($value)
+    {
+        if (!in_array($value, self::DEPLOY_MODES, true)) {
+            $value = 'normal';
+        }
+        pm_Settings::set($this->_prefix . 'deploy_mode', $value);
+    }
+
     // -- Node package manager --
 
     const PACKAGE_MANAGERS = ['auto', 'npm', 'pnpm', 'yarn'];
@@ -305,7 +322,7 @@ class Modules_XveLaravelKit_DeploySettings
             'health_check_url', 'health_check_timeout',
             'pre_deploy_script', 'post_deploy_script',
             'current_release', 'last_deploy_time', 'last_deploy_status',
-            'webhook_secret', 'shared_dirs', 'shared_files', 'node_pm',
+            'webhook_secret', 'shared_dirs', 'shared_files', 'node_pm', 'deploy_mode',
         ];
         foreach ($keys as $key) {
             pm_Settings::set($this->_prefix . $key, null);

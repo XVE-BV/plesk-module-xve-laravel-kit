@@ -53,6 +53,17 @@ class Modules_XveLaravelKit_Form_Settings extends pm_Form_Simple
             'description' => 'One per line. Symlinked from shared/ into each release. (e.g., .env, config/local.php)',
         ]);
 
+        $this->addElement('select', 'deploy_mode', [
+            'label' => 'Deploy Mode',
+            'value' => $this->_settings->getDeployMode(),
+            'multiOptions' => [
+                'normal' => 'Normal — progress dialog + banner for all users',
+                'quiet' => 'Quiet — progress dialog only, no banner',
+                'silent' => 'Silent — background task, no UI notifications',
+            ],
+            'description' => 'Controls visibility of deployments to other Plesk users',
+        ]);
+
         $this->addElement('select', 'node_pm', [
             'label' => 'Node Package Manager',
             'value' => $this->_settings->getNodePackageManager(),
