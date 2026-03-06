@@ -198,17 +198,13 @@ class DomainController extends pm_Controller_Action
             return;
         }
 
-        try {
-            $result = $this->_deployer->deploy();
-            if ($result['success']) {
-                $this->_status->addMessage('info', 'Deployment successful: release ' . $result['release']);
-            } else {
-                $this->_status->addMessage('error', 'Deployment failed: ' . $result['error']);
-            }
-        } catch (\Throwable $e) {
-            $this->_status->addMessage('error', 'Deployment error: ' . $e->getMessage());
-        }
+        $task = new Modules_XveLaravelKit_Task_Deploy();
+        $task->setParam('domainId', $this->_domain->getId());
 
+        $taskManager = new pm_LongTask_Manager();
+        $taskManager->start($task, $this->_domain);
+
+        $this->_status->addMessage('info', 'Deployment started. You can track progress in the task bar.');
         $this->_redirect('domain/releases', ['domain_id' => $this->_domain->getId()]);
     }
 

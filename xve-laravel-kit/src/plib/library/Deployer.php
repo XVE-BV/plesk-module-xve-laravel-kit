@@ -906,4 +906,34 @@ class Modules_XveLaravelKit_Deployer
         $result = pm_ApiCli::callSbin(self::SBIN_SCRIPT, [$cmd]);
         return isset($result['stdout']) ? $result['stdout'] : '';
     }
+
+    // ─── Public API for LongTask step-by-step execution ────────
+
+    public function ensureStructure() { $this->_ensureStructure(); }
+    public function gitClone($releasePath) { $this->_gitClone($releasePath); }
+    public function chownRelease($releasePath) { $this->_chownRelease($releasePath); }
+    public function linkShared($releasePath) { $this->_linkShared($releasePath); }
+    public function switchRelease($releasePath) { $this->_switchRelease($releasePath); }
+    public function runDeploySteps($phase, $releasePath) { $this->_runDeploySteps($phase, $releasePath); }
+    public function healthCheck() { $this->_healthCheck(); }
+    public function cleanup() { $this->_cleanup(); }
+    public function ensureArtisanSymlink() { $this->_ensureArtisanSymlink(); }
+    public function ensureStorageLink($releasePath) { $this->_ensureStorageLink($releasePath); }
+    public function fixOwnership() { $this->_fixOwnership(); }
+    public function addHistory($release, $action, $status) { $this->_addHistory($release, $action, $status); }
+
+    public function runPreDeployScript($releasePath)
+    {
+        $this->_runScript($this->_settings->getPreDeployScript(), $releasePath, 'pre-deploy');
+    }
+
+    public function runPostDeployScript($releasePath)
+    {
+        $this->_runScript($this->_settings->getPostDeployScript(), $releasePath, 'post-deploy');
+    }
+
+    public function getBasePath()
+    {
+        return $this->_basePath;
+    }
 }
