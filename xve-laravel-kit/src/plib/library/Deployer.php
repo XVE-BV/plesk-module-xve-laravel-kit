@@ -501,7 +501,7 @@ class Modules_XveLaravelKit_Deployer
         }
 
         $mode = $this->_settings->getDeployMode();
-        $q = ($mode === 'quiet' || $mode === 'silent') ? ' --quiet' : '';
+        $q = ($mode === 'quiet') ? ' --quiet' : '';
 
         $cmd = sprintf(
             '%sgit clone --depth 1%s --branch %s %s %s 2>&1',
@@ -657,7 +657,7 @@ class Modules_XveLaravelKit_Deployer
         $steps = $this->_settings->getEnabledSteps($phase);
         $commands = [];
         $mode = $this->_settings->getDeployMode();
-        $q = ($mode === 'quiet' || $mode === 'silent');
+        $q = ($mode === 'quiet');
 
         foreach (array_keys($steps) as $step) {
             switch ($step) {

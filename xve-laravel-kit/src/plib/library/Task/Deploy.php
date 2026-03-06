@@ -29,17 +29,8 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
         $settings = new Modules_XveLaravelKit_DeploySettings($domain);
         $deployer = new Modules_XveLaravelKit_Deployer($domain, $settings);
 
-        $mode = $settings->getDeployMode();
-
-        // Silent mode: hide from Plesk task UI entirely
-        if ($mode === 'silent') {
-            $this->hidden = true;
-        }
-
-        // Normal mode: show banner to all users
-        if ($mode === 'normal') {
-            $this->_setBanner($domain->getDisplayName());
-        }
+        // Always show banner to notify other logged-in users
+        $this->_setBanner($domain->getDisplayName());
 
         $release = date('Ymd_His');
         $basePath = rtrim($domain->getHomePath(), '/');

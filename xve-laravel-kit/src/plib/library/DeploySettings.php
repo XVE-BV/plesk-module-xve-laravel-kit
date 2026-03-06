@@ -164,7 +164,7 @@ class Modules_XveLaravelKit_DeploySettings
 
     // -- Deploy mode --
 
-    const DEPLOY_MODES = ['normal', 'quiet', 'silent'];
+    const DEPLOY_MODES = ['normal', 'quiet'];
 
     public function getDeployMode()
     {

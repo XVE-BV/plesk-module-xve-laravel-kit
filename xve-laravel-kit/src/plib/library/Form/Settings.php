@@ -57,11 +57,10 @@ class Modules_XveLaravelKit_Form_Settings extends pm_Form_Simple
             'label' => 'Deploy Mode',
             'value' => $this->_settings->getDeployMode(),
             'multiOptions' => [
-                'normal' => 'Normal — progress dialog + banner for all users',
-                'quiet' => 'Quiet — progress dialog only, no banner',
-                'silent' => 'Silent — background task, no UI notifications',
+                'normal' => 'Verbose — show full command output',
+                'quiet' => 'Quiet — suppress command output',
             ],
-            'description' => 'Controls visibility of deployments to other Plesk users',
+            'description' => 'Controls whether deployment commands (composer, npm, git, artisan) produce output',
         ]);
 
         $this->addElement('select', 'node_pm', [
