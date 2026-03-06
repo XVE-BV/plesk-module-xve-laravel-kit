@@ -500,9 +500,13 @@ class Modules_XveLaravelKit_Deployer
             );
         }
 
+        $mode = $this->_settings->getDeployMode();
+        $q = ($mode === 'quiet' || $mode === 'silent') ? ' --quiet' : '';
+
         $cmd = sprintf(
-            '%sgit clone --depth 1 --branch %s %s %s 2>&1',
+            '%sgit clone --depth 1%s --branch %s %s %s 2>&1',
             $envPrefix,
+            $q,
             escapeshellarg($branch),
             escapeshellarg($repo),
             escapeshellarg($releasePath)
@@ -652,34 +656,50 @@ class Modules_XveLaravelKit_Deployer
     {
         $steps = $this->_settings->getEnabledSteps($phase);
         $commands = [];
+        $mode = $this->_settings->getDeployMode();
+        $q = ($mode === 'quiet' || $mode === 'silent');
 
         foreach (array_keys($steps) as $step) {
             switch ($step) {
                 case 'composer_install':
-                    $commands[] = 'composer install --no-dev --no-interaction --optimize-autoloader --prefer-dist 2>&1';
+                    $cmd = 'composer install --no-dev --no-interaction --optimize-autoloader --prefer-dist';
+                    if ($q) $cmd .= ' --quiet';
+                    $commands[] = $cmd . ' 2>&1';
                     break;
                 case 'node_install':
                     $pm = $this->_detectNodePackageManager($releasePath);
                     if ($pm === 'pnpm') {
-                        $commands[] = 'pnpm install --frozen-lockfile 2>&1';
+                        $cmd = 'pnpm install --frozen-lockfile';
+                        if ($q) $cmd .= ' --silent';
                     } elseif ($pm === 'yarn') {
-                        $commands[] = 'yarn install --frozen-lockfile 2>&1';
+                        $cmd = 'yarn install --frozen-lockfile';
+                        if ($q) $cmd .= ' --silent';
                     } else {
-                        $commands[] = 'npm ci 2>&1';
+                        $cmd = 'npm ci';
+                        if ($q) $cmd .= ' --silent';
                     }
+                    $commands[] = $cmd . ' 2>&1';
                     break;
                 case 'node_build':
                     $pm = $this->_detectNodePackageManager($releasePath);
-                    $commands[] = $pm . ' run build 2>&1';
+                    $cmd = $pm . ' run build';
+                    if ($q && $pm === 'npm') $cmd .= ' --silent';
+                    $commands[] = $cmd . ' 2>&1';
                     break;
                 case 'migrate':
-                    $commands[] = 'php artisan migrate --force 2>&1';
+                    $cmd = 'php artisan migrate --force';
+                    if ($q) $cmd .= ' --quiet';
+                    $commands[] = $cmd . ' 2>&1';
                     break;
                 case 'optimize':
-                    $commands[] = 'php artisan optimize 2>&1';
+                    $cmd = 'php artisan optimize';
+                    if ($q) $cmd .= ' --quiet';
+                    $commands[] = $cmd . ' 2>&1';
                     break;
                 case 'queue_restart':
-                    $commands[] = 'php artisan queue:restart 2>&1';
+                    $cmd = 'php artisan queue:restart';
+                    if ($q) $cmd .= ' --quiet';
+                    $commands[] = $cmd . ' 2>&1';
                     break;
             }
         }
