@@ -246,6 +246,20 @@ class Modules_XveLaravelKit_DeploySettings
         return (bool) preg_match('#^(git@|ssh://)#', $repo);
     }
 
+    public function getRepoWebUrl()
+    {
+        $repo = $this->getGitRepo();
+        // git@github.com:user/repo.git
+        if (preg_match('#^git@([^:]+):(.+?)(?:\.git)?$#', $repo, $m)) {
+            return 'https://' . $m[1] . '/' . $m[2];
+        }
+        // https://github.com/user/repo.git
+        if (preg_match('#^https?://(.+?)(?:\.git)?$#', $repo, $m)) {
+            return 'https://' . $m[1];
+        }
+        return '';
+    }
+
     // -- Deployment steps --
 
     const STEPS = [

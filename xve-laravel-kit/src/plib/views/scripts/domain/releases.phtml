@@ -70,7 +70,11 @@
                     <td style="white-space: nowrap;"><?php echo $this->escape($release['date']); ?></td>
                     <td style="white-space: nowrap;">
                         <?php if ($commit): ?>
-                            <code title="<?php echo $this->escape($commit['message']); ?>"><?php echo $this->escape(substr($commit['hash'], 0, 7)); ?></code>
+                            <?php if ($this->repoWebUrl): ?>
+                                <a href="<?php echo $this->escape($this->repoWebUrl . '/commit/' . $commit['hash']); ?>" target="_blank" style="text-decoration: none;"><code title="<?php echo $this->escape($commit['message']); ?>"><?php echo $this->escape(substr($commit['hash'], 0, 7)); ?></code></a>
+                            <?php else: ?>
+                                <code title="<?php echo $this->escape($commit['message']); ?>"><?php echo $this->escape(substr($commit['hash'], 0, 7)); ?></code>
+                            <?php endif; ?>
                             <span style="color: #666; font-size: 12px;"><?php echo $this->escape($commit['branch']); ?></span>
                             <br><span style="color: #888; font-size: 12px;" title="<?php echo $this->escape($commit['author']); ?>"><?php echo $this->escape(mb_strimwidth($commit['message'], 0, 50, '...')); ?></span>
                         <?php else: ?>

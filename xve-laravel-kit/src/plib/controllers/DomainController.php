@@ -138,6 +138,7 @@ class DomainController extends pm_Controller_Action
         $this->view->settings = $this->_settings;
         $this->view->releases = $this->_deployer->getReleases();
         $this->view->currentRelease = $this->_settings->getCurrentRelease();
+        $this->view->repoWebUrl = $this->_settings->getRepoWebUrl();
     }
 
     // ─── Settings Tab ──────────────────────────────────────────
@@ -323,6 +324,7 @@ class DomainController extends pm_Controller_Action
     {
         $this->view->domain = $this->_domain;
         $this->view->history = $this->_deployer->getHistory();
+        $this->view->repoWebUrl = $this->_settings->getRepoWebUrl();
     }
 
     protected function _redirect($action, $params = [])
