@@ -1,0 +1,909 @@
+<?php
+
+/**
+ * Atomic deployer with rollback support + Laravel management.
+ *
+ * Directory structure under the domain's vhost:
+ *   /releases/{timestamp}/   - Each deployment snapshot
+ *   /shared/                 - Persistent files (logs, uploads, .env)
+ *   /current -> releases/X   - Symlink to active release
+ *   /.deploy-history.json    - Deployment log
+ */
+class Modules_XveLaravelKit_Deployer
+{
+    const HISTORY_FILE = '.deploy-history.json';
+    const SBIN_SCRIPT = 'xve-exec.sh';
+
+    private $_domain;
+    private $_settings;
+    private $_fileManager;
+    private $_basePath;
+
+    public function __construct(pm_Domain $domain, Modules_XveLaravelKit_DeploySettings $settings)
+    {
+        $this->_domain = $domain;
+        $this->_settings = $settings;
+        $this->_fileManager = new pm_ServerFileManager();
+        $this->_basePath = $this->_getBasePath();
+    }
+
+    // ─── Deploy ────────────────────────────────────────────────
+
+    public function deploy()
+    {
+        $release = date('Ymd_His');
+        $releasePath = $this->_basePath . '/releases/' . $release;
+        $previousRelease = $this->_settings->getCurrentRelease();
+
+        try {
+            $this->_ensureStructure();
+            $this->_gitClone($releasePath);
+            $this->_chownRelease($releasePath);
+            $this->_linkShared($releasePath);
+
+            $this->_runDeploySteps('pre', $releasePath);
+            $this->_runScript($this->_settings->getPreDeployScript(), $releasePath, 'pre-deploy');
+
+            $this->_switchRelease($releasePath);
+
+            $this->_runDeploySteps('post', $releasePath);
+            $this->_runScript($this->_settings->getPostDeployScript(), $releasePath, 'post-deploy');
+
+            $this->_healthCheck();
+
+            $this->_settings->setCurrentRelease($release);
+            $this->_settings->setLastDeployTime(date('Y-m-d H:i:s'));
+            $this->_settings->setLastDeployStatus('success');
+            $this->_addHistory($release, 'deploy', 'success');
+            $this->_cleanup();
+
+            // Ensure artisan symlink at vhost root for Laravel Toolkit compatibility
+            $this->_ensureArtisanSymlink();
+
+            // Create public/storage -> shared/storage/app/public symlink
+            $this->_ensureStorageLink($releasePath);
+
+            // Fix ownership on all symlinks/dirs so nginx/PHP-FPM can traverse them
+            $this->_fixOwnership();
+
+            return ['success' => true, 'release' => $release];
+        } catch (\Throwable $e) {
+            $this->_addHistory($release, 'deploy', 'failed');
+            $this->_settings->setLastDeployTime(date('Y-m-d H:i:s'));
+            $this->_settings->setLastDeployStatus('failed');
+
+            if ($previousRelease) {
+                try {
+                    $prevPath = $this->_basePath . '/releases/' . $previousRelease;
+                    $this->_switchRelease($prevPath);
+                } catch (\Throwable $rollbackError) {
+                    // Rollback failed too
+                }
+            }
+
+            return ['success' => false, 'error' => $e->getMessage(), 'release' => $release];
+        }
+    }
+
+    public function rollback($release)
+    {
+        $releasePath = $this->_basePath . '/releases/' . $release;
+
+        if (!$this->_dirExists($releasePath)) {
+            return ['success' => false, 'error' => 'Release not found: ' . $release];
+        }
+
+        try {
+            $this->_switchRelease($releasePath);
+            $this->_fixOwnership();
+            $this->_settings->setCurrentRelease($release);
+            $this->_settings->setLastDeployTime(date('Y-m-d H:i:s'));
+            $this->_settings->setLastDeployStatus('success');
+            $this->_addHistory($release, 'rollback', 'success');
+            return ['success' => true];
+        } catch (\Throwable $e) {
+            $this->_addHistory($release, 'rollback', 'failed');
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    public function getReleases()
+    {
+        $releasesDir = $this->_basePath . '/releases';
+        if (!$this->_dirExists($releasesDir)) {
+            return [];
+        }
+
+        try {
+            $output = $this->_exec('ls -1r ' . escapeshellarg($releasesDir) . ' 2>/dev/null');
+        } catch (\Throwable $e) {
+            return [];
+        }
+
+        $currentRelease = $this->_settings->getCurrentRelease();
+        $statusMap = $this->_getReleaseStatusMap();
+        $releases = [];
+
+        foreach (array_filter(explode("\n", trim($output))) as $name) {
+            if ($name === '_original' || !preg_match('/^\d{8}_\d{6}$/', $name)) {
+                continue;
+            }
+
+            $isCurrent = ($name === $currentRelease);
+            $status = 'unknown';
+            if ($isCurrent) {
+                $status = 'current';
+            } elseif (isset($statusMap[$name])) {
+                $status = $statusMap[$name];
+            }
+
+            $date = '';
+            if (preg_match('/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})$/', $name, $m)) {
+                $date = "$m[1]-$m[2]-$m[3] $m[4]:$m[5]:$m[6]";
+            }
+
+            $releases[] = [
+                'name' => $name,
+                'date' => $date,
+                'current' => $isCurrent,
+                'status' => $status,
+            ];
+        }
+
+        return $releases;
+    }
+
+    public function getHistory()
+    {
+        $historyFile = $this->_basePath . '/' . self::HISTORY_FILE;
+        if (!$this->_fileManager->fileExists($historyFile)) {
+            return [];
+        }
+        $content = $this->_fileManager->fileGetContents($historyFile);
+        $history = json_decode($content, true);
+        return is_array($history) ? array_reverse($history) : [];
+    }
+
+    public function cleanFailedReleases()
+    {
+        $releases = $this->getReleases();
+        $removed = 0;
+        foreach ($releases as $release) {
+            if (!$release['current']) {
+                $path = $this->_basePath . '/releases/' . $release['name'];
+                $this->_exec('rm -rf ' . escapeshellarg($path));
+                $removed++;
+            }
+        }
+        return $removed;
+    }
+
+    // ─── Laravel Management ────────────────────────────────────
+
+    /**
+     * Get application info from the current release.
+     */
+    public function getAppInfo()
+    {
+        $info = [
+            'laravel_version' => null,
+            'php_version' => null,
+            'environment' => null,
+            'debug' => null,
+            'app_name' => null,
+            'app_url' => null,
+            'db_connection' => null,
+            'db_host' => null,
+            'db_database' => null,
+            'cache_store' => null,
+            'queue_connection' => null,
+            'mail_mailer' => null,
+            'has_env' => false,
+            'has_current' => false,
+        ];
+
+        $currentPath = $this->_basePath . '/current';
+        $info['has_current'] = $this->_dirExists($currentPath);
+        if (!$info['has_current']) {
+            return $info;
+        }
+
+        // Laravel version from composer.lock
+        try {
+            $lockFile = $currentPath . '/composer.lock';
+            if ($this->_fileManager->fileExists($lockFile)) {
+                $lockContent = $this->_fileManager->fileGetContents($lockFile);
+                $lock = json_decode($lockContent, true);
+                if (is_array($lock) && isset($lock['packages'])) {
+                    foreach ($lock['packages'] as $pkg) {
+                        if ($pkg['name'] === 'laravel/framework') {
+                            $info['laravel_version'] = $pkg['version'];
+                            break;
+                        }
+                    }
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        // PHP version
+        try {
+            $phpBinDir = $this->_getPhpBinDir();
+            $phpBin = $phpBinDir ? $phpBinDir . '/php' : 'php';
+            $info['php_version'] = trim($this->_exec($phpBin . ' -r "echo PHP_VERSION;" 2>/dev/null'));
+        } catch (\Throwable $e) {}
+
+        // .env values
+        $env = $this->getEnvContents();
+        if (!empty($env)) {
+            $info['has_env'] = true;
+            $parsed = $this->_parseEnv($env);
+            $info['environment'] = $parsed['APP_ENV'] ?? null;
+            $info['debug'] = $parsed['APP_DEBUG'] ?? null;
+            $info['app_name'] = $parsed['APP_NAME'] ?? null;
+            $info['app_url'] = $parsed['APP_URL'] ?? null;
+            $info['db_connection'] = $parsed['DB_CONNECTION'] ?? null;
+            $info['db_host'] = $parsed['DB_HOST'] ?? null;
+            $info['db_database'] = $parsed['DB_DATABASE'] ?? null;
+            $info['cache_store'] = $parsed['CACHE_STORE'] ?? null;
+            $info['queue_connection'] = $parsed['QUEUE_CONNECTION'] ?? null;
+            $info['mail_mailer'] = $parsed['MAIL_MAILER'] ?? null;
+        }
+
+        return $info;
+    }
+
+    /**
+     * Read the shared .env file contents.
+     */
+    public function getEnvContents()
+    {
+        $envPath = $this->_basePath . '/shared/.env';
+        try {
+            if ($this->_fileManager->fileExists($envPath)) {
+                return $this->_fileManager->fileGetContents($envPath);
+            }
+        } catch (\Throwable $e) {}
+        return '';
+    }
+
+    /**
+     * Write the shared .env file.
+     */
+    public function saveEnvContents($contents)
+    {
+        $envPath = $this->_basePath . '/shared/.env';
+
+        // Backup existing .env
+        try {
+            if ($this->_fileManager->fileExists($envPath)) {
+                $backup = $this->_basePath . '/shared/.env.backup.' . date('Ymd_His');
+                $this->_exec(sprintf('cp %s %s', escapeshellarg($envPath), escapeshellarg($backup)));
+            }
+        } catch (\Throwable $e) {}
+
+        $this->_fileManager->filePutContents($envPath, $contents);
+
+        // Chown to system user
+        $user = $this->_getSystemUser();
+        $this->_exec(sprintf('chown %s:%s %s',
+            escapeshellarg($user),
+            escapeshellarg('psaserv'),
+            escapeshellarg($envPath)
+        ));
+    }
+
+    /**
+     * Get .env.example contents from the current release.
+     */
+    public function getEnvExampleContents()
+    {
+        $examplePath = $this->_basePath . '/current/.env.example';
+        try {
+            if ($this->_fileManager->fileExists($examplePath)) {
+                return $this->_fileManager->fileGetContents($examplePath);
+            }
+        } catch (\Throwable $e) {}
+        return '';
+    }
+
+    /**
+     * Run an artisan command in the current release as the system user.
+     */
+    public function runArtisan($command)
+    {
+        $currentPath = $this->_basePath . '/current';
+        if (!$this->_dirExists($currentPath)) {
+            return ['success' => false, 'output' => 'No current release found.'];
+        }
+
+        // Sanitize: strip leading "php artisan" if user typed it
+        $command = preg_replace('/^\s*(php\s+)?artisan\s+/', '', $command);
+
+        // Block dangerous commands
+        $blocked = ['migrate:fresh', 'migrate:reset', 'db:wipe', 'db:seed', 'key:generate'];
+        $cmdBase = explode(' ', trim($command))[0];
+        if (in_array($cmdBase, $blocked)) {
+            return ['success' => false, 'output' => "Command '$cmdBase' is blocked for safety. Run it manually via SSH if needed."];
+        }
+
+        $phpBinDir = $this->_getPhpBinDir();
+        $pathExport = $phpBinDir ? 'export PATH="' . $phpBinDir . ':$PATH" && ' : '';
+
+        try {
+            $fullCmd = sprintf(
+                'su -s /bin/bash %s -c %s 2>&1',
+                escapeshellarg($this->_getSystemUser()),
+                escapeshellarg($pathExport . 'cd ' . escapeshellarg($currentPath) . ' && php artisan ' . $command)
+            );
+            $output = $this->_exec($fullCmd);
+            return ['success' => true, 'output' => $output];
+        } catch (\Throwable $e) {
+            return ['success' => false, 'output' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Read the Laravel log file (from shared/storage/logs/).
+     */
+    public function getLogContents($lines = 200)
+    {
+        $logPath = $this->_basePath . '/shared/storage/logs/laravel.log';
+        try {
+            if (!$this->_fileManager->fileExists($logPath)) {
+                return '';
+            }
+            $output = $this->_exec(sprintf('tail -n %d %s 2>/dev/null', (int) $lines, escapeshellarg($logPath)));
+            return $output;
+        } catch (\Throwable $e) {
+            return 'Error reading log: ' . $e->getMessage();
+        }
+    }
+
+    /**
+     * Clear the Laravel log file.
+     */
+    public function clearLog()
+    {
+        $logPath = $this->_basePath . '/shared/storage/logs/laravel.log';
+        try {
+            if ($this->_fileManager->fileExists($logPath)) {
+                $this->_exec('truncate -s 0 ' . escapeshellarg($logPath));
+            }
+            return true;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    /**
+     * Check if the app is in maintenance mode.
+     */
+    public function isInMaintenanceMode()
+    {
+        $downFile = $this->_basePath . '/current/storage/framework/down';
+        try {
+            return $this->_fileManager->fileExists($downFile);
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    // ─── Server Prerequisites ──────────────────────────────────
+
+    public function checkPrerequisites()
+    {
+        $checks = [];
+        $user = $this->_getSystemUser();
+        $phpBinDir = $this->_getPhpBinDir();
+        $pathPrefix = $phpBinDir ? 'export PATH="' . $phpBinDir . ':$PATH" && ' : '';
+
+        $checks['git'] = $this->_checkTool('git', 'git --version');
+        $checks['php'] = $this->_checkToolAsUser($user, $pathPrefix . 'php --version | head -1');
+        $checks['composer'] = $this->_checkToolAsUser($user, $pathPrefix . 'composer --version 2>&1 | head -1');
+        $checks['node'] = $this->_checkToolAsUser($user, 'node --version 2>&1');
+        $checks['npm'] = $this->_checkToolAsUser($user, 'npm --version 2>&1');
+        $checks['pnpm'] = $this->_checkToolAsUser($user, 'pnpm --version 2>&1');
+        $checks['yarn'] = $this->_checkToolAsUser($user, 'yarn --version 2>&1');
+
+        $sshKeyExists = false;
+        try {
+            $sshKeyExists = $this->_fileManager->fileExists($this->_settings->getSshPrivateKeyPath());
+        } catch (\Throwable $e) {}
+        $checks['ssh_key'] = [
+            'name' => 'SSH Deploy Key',
+            'ok' => $sshKeyExists,
+            'version' => $sshKeyExists ? 'Present' : 'Not generated',
+            'required' => true,
+        ];
+
+        $basePathOk = false;
+        try {
+            $result = $this->_exec('test -d ' . escapeshellarg($this->_basePath) . ' && test -w ' . escapeshellarg($this->_basePath) . ' && echo "yes" || echo "no"');
+            $basePathOk = trim($result) === 'yes';
+        } catch (\Throwable $e) {}
+        $checks['base_path'] = [
+            'name' => 'Vhost directory',
+            'ok' => $basePathOk,
+            'version' => $basePathOk ? $this->_basePath : 'Not accessible',
+            'required' => true,
+        ];
+
+        $enabledSteps = $this->_settings->getEnabledSteps();
+        $stepKeys = array_keys($enabledSteps);
+        $checks['git']['required'] = true;
+        $checks['php']['required'] = true;
+        $checks['composer']['required'] = in_array('composer_install', $stepKeys);
+        $nodeRequired = in_array('node_install', $stepKeys) || in_array('node_build', $stepKeys);
+        $checks['node']['required'] = $nodeRequired;
+        $configuredPm = $this->_settings->getNodePackageManager();
+        $checks['npm']['required'] = $nodeRequired && ($configuredPm === 'npm' || ($configuredPm === 'auto' && !$checks['pnpm']['ok'] && !$checks['yarn']['ok']));
+        $checks['pnpm']['required'] = $nodeRequired && $configuredPm === 'pnpm';
+        $checks['yarn']['required'] = $nodeRequired && $configuredPm === 'yarn';
+
+        return $checks;
+    }
+
+    // ─── Internal: Deploy Helpers ──────────────────────────────
+
+    private function _getBasePath()
+    {
+        return rtrim($this->_domain->getHomePath(), '/');
+    }
+
+    private function _ensureStructure()
+    {
+        $paths = [
+            $this->_basePath . '/releases',
+            $this->_basePath . '/shared',
+        ];
+
+        foreach ($this->_settings->getSharedDirs() as $dir) {
+            $sharedDir = $this->_basePath . '/shared/' . $dir;
+            $paths[] = $sharedDir;
+            if ($dir === 'storage') {
+                $paths[] = $sharedDir . '/app/public';
+                $paths[] = $sharedDir . '/framework/cache/data';
+                $paths[] = $sharedDir . '/framework/sessions';
+                $paths[] = $sharedDir . '/framework/testing';
+                $paths[] = $sharedDir . '/framework/views';
+                $paths[] = $sharedDir . '/logs';
+            }
+        }
+
+        foreach ($paths as $path) {
+            $this->_exec('mkdir -p ' . escapeshellarg($path));
+        }
+
+        // Chown all created directories to the domain system user
+        $user = $this->_getSystemUser();
+        foreach ($paths as $path) {
+            $this->_exec(sprintf('chown %s:%s %s',
+                escapeshellarg($user),
+                escapeshellarg('psaserv'),
+                escapeshellarg($path)
+            ));
+        }
+    }
+
+    private function _gitClone($releasePath)
+    {
+        $repo = $this->_settings->getGitRepo();
+        $branch = $this->_settings->getBranch();
+
+        $envPrefix = '';
+        if ($this->_settings->isSshRepo()) {
+            Modules_XveLaravelKit_SshKey::ensure($this->_settings);
+            $keyPath = $this->_settings->getSshPrivateKeyPath();
+            $envPrefix = sprintf(
+                'GIT_SSH_COMMAND=%s ',
+                escapeshellarg('ssh -i ' . $keyPath . ' -o StrictHostKeyChecking=accept-new')
+            );
+        }
+
+        $cmd = sprintf(
+            '%sgit clone --depth 1 --branch %s %s %s 2>&1',
+            $envPrefix,
+            escapeshellarg($branch),
+            escapeshellarg($repo),
+            escapeshellarg($releasePath)
+        );
+
+        $output = $this->_exec($cmd);
+
+        if (!$this->_dirExists($releasePath . '/.git')) {
+            throw new pm_Exception('Git clone failed: ' . $output);
+        }
+
+        $this->_exec('rm -rf ' . escapeshellarg($releasePath . '/.git'));
+    }
+
+    private function _linkShared($releasePath)
+    {
+        foreach ($this->_settings->getSharedDirs() as $dir) {
+            $target = $releasePath . '/' . $dir;
+            $shared = $this->_basePath . '/shared/' . $dir;
+            $parentDir = dirname($target);
+            if ($parentDir !== $releasePath) {
+                $this->_exec('mkdir -p ' . escapeshellarg($parentDir));
+            }
+            $this->_exec('rm -rf ' . escapeshellarg($target));
+            $this->_exec(sprintf('ln -sfn %s %s', escapeshellarg($shared), escapeshellarg($target)));
+        }
+
+        foreach ($this->_settings->getSharedFiles() as $file) {
+            $target = $releasePath . '/' . $file;
+            $shared = $this->_basePath . '/shared/' . $file;
+            if ($this->_fileManager->fileExists($shared)) {
+                $parentDir = dirname($target);
+                if ($parentDir !== $releasePath) {
+                    $this->_exec('mkdir -p ' . escapeshellarg($parentDir));
+                }
+                $this->_exec('rm -f ' . escapeshellarg($target));
+                $this->_exec(sprintf('ln -sfn %s %s', escapeshellarg($shared), escapeshellarg($target)));
+            }
+        }
+    }
+
+    private function _switchRelease($releasePath)
+    {
+        $currentLink = $this->_basePath . '/current';
+        $tempLink = $this->_basePath . '/current_tmp_' . getmypid();
+        $httpdocs = $this->_basePath . '/httpdocs';
+
+        if (!is_link($httpdocs) && $this->_dirExists($httpdocs)) {
+            $backupPath = $this->_basePath . '/releases/_original';
+            if (!$this->_dirExists($backupPath)) {
+                $this->_exec(sprintf('cp -a %s %s', escapeshellarg($httpdocs), escapeshellarg($backupPath)));
+            }
+            $this->_exec('rm -rf ' . escapeshellarg($httpdocs));
+        }
+
+        $this->_exec(sprintf('ln -sfn %s %s', escapeshellarg($releasePath), escapeshellarg($tempLink)));
+        $this->_exec(sprintf('mv -Tf %s %s', escapeshellarg($tempLink), escapeshellarg($currentLink)));
+
+        $webRoot = $this->_dirExists($releasePath . '/public')
+            ? $currentLink . '/public'
+            : $currentLink;
+
+        $this->_exec('rm -f ' . escapeshellarg($httpdocs));
+        $this->_exec(sprintf('ln -sfn %s %s', escapeshellarg($webRoot), escapeshellarg($httpdocs)));
+    }
+
+    private function _ensureArtisanSymlink()
+    {
+        $artisanLink = $this->_basePath . '/artisan';
+        $target = 'current/artisan';
+        if ($this->_fileManager->fileExists($this->_basePath . '/current/artisan')) {
+            $this->_exec(sprintf('ln -sfn %s %s', escapeshellarg($target), escapeshellarg($artisanLink)));
+        }
+    }
+
+    private function _ensureStorageLink($releasePath)
+    {
+        $publicStorage = $releasePath . '/public/storage';
+        $target = $this->_basePath . '/shared/storage/app/public';
+        if ($this->_dirExists($target) && !$this->_fileManager->fileExists($publicStorage)) {
+            $this->_exec(sprintf('ln -sfn %s %s', escapeshellarg($target), escapeshellarg($publicStorage)));
+        }
+    }
+
+    private function _healthCheck()
+    {
+        $url = $this->_settings->getHealthCheckUrl();
+        if (empty($url)) {
+            return;
+        }
+
+        $timeout = $this->_settings->getHealthCheckTimeout();
+
+        if (strpos($url, '/') === 0) {
+            $url = 'http://' . $this->_domain->getDisplayName() . $url;
+        }
+
+        $parsedUrl = parse_url($url);
+        $domainName = $this->_domain->getDisplayName();
+        if (isset($parsedUrl['host']) && $parsedUrl['host'] !== $domainName) {
+            throw new pm_Exception('Health check URL must be on the same domain.');
+        }
+
+        $cmd = sprintf(
+            'curl -sf --max-time %d -o /dev/null -w "%%{http_code}" %s 2>&1',
+            (int) $timeout,
+            escapeshellarg($url)
+        );
+
+        $httpCode = trim($this->_exec($cmd));
+        $code = (int) $httpCode;
+
+        if ($code < 200 || $code >= 400) {
+            throw new pm_Exception(
+                sprintf('Health check failed: HTTP %s from %s', $httpCode, $url)
+            );
+        }
+    }
+
+    private function _runScript($script, $releasePath, $phase)
+    {
+        if (empty($script)) {
+            return;
+        }
+
+        $phpBinDir = $this->_getPhpBinDir();
+        $pathExport = $phpBinDir ? 'export PATH="' . $phpBinDir . ':$PATH"' . "\n" : '';
+
+        $scriptPath = $releasePath . '/.xve-' . $phase . '.sh';
+        $this->_fileManager->filePutContents($scriptPath,
+            "#!/bin/bash\nset -euo pipefail\n" . $pathExport . "cd " . escapeshellarg($releasePath) . "\n" . $script
+        );
+        $this->_exec('chmod +x ' . escapeshellarg($scriptPath));
+
+        $output = $this->_exec(sprintf(
+            'su -s /bin/bash %s -c %s 2>&1',
+            escapeshellarg($this->_getSystemUser()),
+            escapeshellarg('bash ' . $scriptPath)
+        ));
+
+        $this->_exec('rm -f ' . escapeshellarg($scriptPath));
+
+        return $output;
+    }
+
+    private function _runDeploySteps($phase, $releasePath)
+    {
+        $steps = $this->_settings->getEnabledSteps($phase);
+        $commands = [];
+
+        foreach (array_keys($steps) as $step) {
+            switch ($step) {
+                case 'composer_install':
+                    $commands[] = 'composer install --no-dev --no-interaction --optimize-autoloader --prefer-dist 2>&1';
+                    break;
+                case 'node_install':
+                    $pm = $this->_detectNodePackageManager($releasePath);
+                    if ($pm === 'pnpm') {
+                        $commands[] = 'pnpm install --frozen-lockfile 2>&1';
+                    } elseif ($pm === 'yarn') {
+                        $commands[] = 'yarn install --frozen-lockfile 2>&1';
+                    } else {
+                        $commands[] = 'npm ci 2>&1';
+                    }
+                    break;
+                case 'node_build':
+                    $pm = $this->_detectNodePackageManager($releasePath);
+                    $commands[] = $pm . ' run build 2>&1';
+                    break;
+                case 'migrate':
+                    $commands[] = 'php artisan migrate --force 2>&1';
+                    break;
+                case 'optimize':
+                    $commands[] = 'php artisan optimize 2>&1';
+                    break;
+                case 'queue_restart':
+                    $commands[] = 'php artisan queue:restart 2>&1';
+                    break;
+            }
+        }
+
+        if (empty($commands)) {
+            return;
+        }
+
+        $script = implode("\n", $commands);
+        $this->_runScript($script, $releasePath, $phase . '-steps');
+    }
+
+    private function _detectNodePackageManager($releasePath)
+    {
+        $configured = $this->_settings->getNodePackageManager();
+        if ($configured !== 'auto') {
+            return $configured;
+        }
+        if ($this->_fileManager->fileExists($releasePath . '/pnpm-lock.yaml')) {
+            return 'pnpm';
+        }
+        if ($this->_fileManager->fileExists($releasePath . '/yarn.lock')) {
+            return 'yarn';
+        }
+        return 'npm';
+    }
+
+    private function _cleanup()
+    {
+        $keepReleases = $this->_settings->getKeepReleases();
+        $releases = $this->getReleases();
+
+        if (count($releases) <= $keepReleases) {
+            return;
+        }
+
+        $toRemove = array_slice($releases, $keepReleases);
+        foreach ($toRemove as $release) {
+            if ($release['current']) {
+                continue;
+            }
+            $path = $this->_basePath . '/releases/' . $release['name'];
+            $this->_exec('rm -rf ' . escapeshellarg($path));
+        }
+    }
+
+    private function _addHistory($release, $action, $status)
+    {
+        $historyFile = $this->_basePath . '/' . self::HISTORY_FILE;
+        $history = [];
+
+        if ($this->_fileManager->fileExists($historyFile)) {
+            $content = $this->_fileManager->fileGetContents($historyFile);
+            $decoded = json_decode($content, true);
+            if (is_array($decoded)) {
+                $history = $decoded;
+            }
+        }
+
+        $history[] = [
+            'release' => $release,
+            'action' => $action,
+            'status' => $status,
+            'timestamp' => date('Y-m-d H:i:s'),
+            'user' => pm_Session::getClient()->getProperty('login'),
+        ];
+
+        if (count($history) > 100) {
+            $history = array_slice($history, -100);
+        }
+
+        $this->_fileManager->filePutContents($historyFile, json_encode($history, JSON_PRETTY_PRINT));
+    }
+
+    private function _chownRelease($releasePath)
+    {
+        $user = $this->_getSystemUser();
+        $this->_exec(sprintf('chown -R %s:%s %s',
+            escapeshellarg($user),
+            escapeshellarg('psaserv'),
+            escapeshellarg($releasePath)
+        ));
+        $sharedPath = $this->_basePath . '/shared';
+        $this->_exec(sprintf('chown -R %s:%s %s',
+            escapeshellarg($user),
+            escapeshellarg('psaserv'),
+            escapeshellarg($sharedPath)
+        ));
+    }
+
+    /**
+     * Fix ownership on all top-level symlinks, directories, and files in the vhost root.
+     *
+     * Plesk nginx uses `disable_symlinks if_not_owner` which means symlink owner
+     * must match target owner. Since sbin runs as root, all symlinks/dirs created
+     * by _switchRelease, _ensureArtisanSymlink, _ensureStorageLink, _ensureStructure
+     * are root-owned and cause 403. This fixes them in one pass.
+     */
+    private function _fixOwnership()
+    {
+        $user = $this->_getSystemUser();
+        $group = 'psaserv';
+
+        // chown -h on the basepath itself fixes symlinks without following them,
+        // and also fixes regular files/dirs. Non-recursive — releases are chowned individually.
+        $this->_exec(sprintf(
+            'find %s -maxdepth 1 -exec chown -h %s:%s {} + 2>/dev/null || true',
+            escapeshellarg($this->_basePath),
+            escapeshellarg($user),
+            escapeshellarg($group)
+        ));
+    }
+
+    private function _getReleaseStatusMap()
+    {
+        $history = [];
+        $historyFile = $this->_basePath . '/' . self::HISTORY_FILE;
+        if ($this->_fileManager->fileExists($historyFile)) {
+            $content = $this->_fileManager->fileGetContents($historyFile);
+            $decoded = json_decode($content, true);
+            if (is_array($decoded)) {
+                $history = $decoded;
+            }
+        }
+        $map = [];
+        foreach ($history as $entry) {
+            if (isset($entry['release'], $entry['status'])) {
+                $map[$entry['release']] = $entry['status'];
+            }
+        }
+        return $map;
+    }
+
+    // ─── Internal: System Helpers ──────────────────────────────
+
+    private function _getSystemUser()
+    {
+        return $this->_domain->getSysUserLogin();
+    }
+
+    private function _getPhpBinDir()
+    {
+        try {
+            $phpHandler = $this->_domain->getPhpHandlerId();
+            if (preg_match('/plesk-php(\d)(\d)/', $phpHandler, $m)) {
+                $version = $m[1] . '.' . $m[2];
+                $dir = '/opt/plesk/php/' . $version . '/bin';
+                if ($this->_dirExists($dir)) {
+                    return $dir;
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        try {
+            $result = $this->_exec('ls -d /opt/plesk/php/*/bin 2>/dev/null | sort -V | tail -1');
+            $dir = trim($result);
+            if (!empty($dir)) {
+                return $dir;
+            }
+        } catch (\Throwable $e) {}
+
+        return '';
+    }
+
+    private function _dirExists($path)
+    {
+        try {
+            $result = $this->_exec('test -d ' . escapeshellarg($path) . ' && echo "yes" || echo "no"');
+            return trim($result) === 'yes';
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    private function _parseEnv($content)
+    {
+        $parsed = [];
+        foreach (explode("\n", $content) as $line) {
+            $line = trim($line);
+            if (empty($line) || $line[0] === '#') {
+                continue;
+            }
+            $pos = strpos($line, '=');
+            if ($pos !== false) {
+                $key = trim(substr($line, 0, $pos));
+                $value = trim(substr($line, $pos + 1));
+                $value = trim($value, '"\'');
+                $parsed[$key] = $value;
+            }
+        }
+        return $parsed;
+    }
+
+    private function _checkTool($name, $cmd)
+    {
+        try {
+            $output = trim($this->_exec($cmd . ' 2>&1'));
+            return ['name' => $name, 'ok' => true, 'version' => $output, 'required' => false];
+        } catch (\Throwable $e) {
+            return ['name' => $name, 'ok' => false, 'version' => 'Not found', 'required' => false];
+        }
+    }
+
+    private function _checkToolAsUser($user, $cmd)
+    {
+        $name = 'unknown';
+        if (preg_match('/(?:&&\s*)?(\w+)\s+--version/', $cmd, $m)) {
+            $name = $m[1];
+        }
+        try {
+            $fullCmd = sprintf('su -s /bin/bash %s -c %s 2>&1', escapeshellarg($user), escapeshellarg($cmd));
+            $output = trim($this->_exec($fullCmd));
+            if (stripos($output, 'not found') !== false || stripos($output, 'No such file') !== false) {
+                return ['name' => $name, 'ok' => false, 'version' => 'Not found', 'required' => false];
+            }
+            return ['name' => $name, 'ok' => true, 'version' => $output, 'required' => false];
+        } catch (\Throwable $e) {
+            return ['name' => $name, 'ok' => false, 'version' => 'Not found', 'required' => false];
+        }
+    }
+
+    private function _exec($cmd)
+    {
+        $result = pm_ApiCli::callSbin(self::SBIN_SCRIPT, [$cmd]);
+        return isset($result['stdout']) ? $result['stdout'] : '';
+    }
+}

@@ -1,0 +1,84 @@
+<div style="display: flex; align-items: center; gap: 14px; margin-bottom: 8px;">
+    <img src="/modules/xve-laravel-kit/images/logo.svg" alt="XVE" style="height: 40px; width: auto;" />
+    <div>
+        <h2 style="margin: 0;">XVE Laravel Kit</h2>
+        <p style="margin: 4px 0 0; color: #666;">Atomic deployments with rollback, Laravel management tools, and zero-downtime release switching.</p>
+    </div>
+</div>
+
+<?php
+$configured = array_filter($this->domains, function($d) { return $d['enabled']; });
+$unconfigured = array_filter($this->domains, function($d) { return !$d['enabled']; });
+?>
+
+<?php if (empty($configured)): ?>
+    <p>No domains configured yet. Select a domain below to get started.</p>
+<?php else: ?>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Domain</th>
+                <th>Status</th>
+                <th>Current Release</th>
+                <th>Last Deploy</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($configured as $domain): ?>
+                <tr>
+                    <td><?php echo $this->escape($domain['name']); ?></td>
+                    <td>
+                        <?php if ($domain['lastStatus'] === 'success'): ?>
+                            <span style="color: green;">&#x2705; Active</span>
+                        <?php elseif ($domain['lastStatus'] === 'failed'): ?>
+                            <span style="color: red;">&#x274C; Failed</span>
+                        <?php else: ?>
+                            <span>&#x2796; Configured</span>
+                        <?php endif; ?>
+                    </td>
+                    <td><?php echo $this->escape($domain['currentRelease'] ?: '—'); ?></td>
+                    <td><?php echo $this->escape($domain['lastDeploy'] ?: '—'); ?></td>
+                    <td style="white-space: nowrap;">
+                        <a href="<?php echo Modules_XveLaravelKit_Url::action('domain/index', ['domain_id' => $domain['id']]); ?>"
+                           class="btn">
+                            Manage
+                        </a>
+                        <form method="post" style="display: inline;"
+                              action="<?php echo Modules_XveLaravelKit_Url::action('domain/delete', ['domain_id' => $domain['id']]); ?>">
+                            <button type="submit" class="btn"
+                                    onclick="return confirm('Remove configuration for <?php echo $this->escape($domain['name']); ?>? Settings only, files on disk are kept.');">
+                                &#x1F5D1; Remove
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+<?php endif; ?>
+
+<?php if (!empty($unconfigured)): ?>
+    <h3>Available Domains</h3>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Domain</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($unconfigured as $domain): ?>
+                <tr>
+                    <td><?php echo $this->escape($domain['name']); ?></td>
+                    <td>
+                        <a href="<?php echo Modules_XveLaravelKit_Url::action('domain/settings', ['domain_id' => $domain['id']]); ?>"
+                           class="btn">
+                            Configure
+                        </a>
+                    </td>
+                </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+<?php endif; ?>

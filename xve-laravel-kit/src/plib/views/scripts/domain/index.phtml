@@ -1,0 +1,181 @@
+<?php echo $this->renderTabs($this->tabs); ?>
+
+<!-- Domain Header Banner -->
+<div style="background: #f0f7ff; border: 1px solid #b3d4fc; border-radius: 4px; padding: 10px 16px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;">
+    <span style="display: flex; align-items: center; gap: 10px;">
+        <img src="/modules/xve-laravel-kit/images/logo.svg" alt="XVE" style="height: 24px; width: auto;" />
+        Laravel application for
+        <a href="http://<?php echo $this->escape($this->domain->getName()); ?>" target="_blank" rel="noopener">
+            <?php echo $this->escape($this->domain->getName()); ?>
+        </a>
+    </span>
+    <?php if ($this->settings->isEnabled()): ?>
+        <div style="display: flex; gap: 8px;">
+            <form method="post" style="display: inline;"
+                  action="<?php echo Modules_XveLaravelKit_Url::action('domain/deploy', ['domain_id' => $this->domain->getId()]); ?>">
+                <button type="submit" class="btn btn-primary"
+                        onclick="return confirm('Deploy from branch: <?php echo $this->escape($this->settings->getBranch()); ?>?');">
+                    Deploy Now
+                </button>
+            </form>
+        </div>
+    <?php endif; ?>
+</div>
+
+<div style="display: flex; gap: 24px; align-items: flex-start;">
+
+    <!-- Left: Site Preview -->
+    <div style="width: 260px; flex-shrink: 0;">
+        <div style="border: 1px solid #ddd; border-radius: 4px; overflow: hidden; background: #fff; margin-bottom: 12px;">
+            <iframe src="//<?php echo $this->escape($this->domain->getName()); ?>"
+                    style="width: 260px; height: 200px; border: none; pointer-events: none; transform-origin: 0 0;"
+                    loading="lazy" sandbox></iframe>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+            <a href="/smb/web/overview/id/<?php echo $this->escape($this->domain->getId()); ?>/type/domain"
+               style="display: flex; align-items: center; gap: 6px; text-decoration: none;">
+                <span style="font-size: 14px;">&#x1F310;</span> Manage domain
+            </a>
+            <a href="<?php echo Modules_XveLaravelKit_Url::action('domain/log', ['domain_id' => $this->domain->getId()]); ?>"
+               style="display: flex; align-items: center; gap: 6px; text-decoration: none;">
+                <span style="font-size: 14px;">&#x1F4CB;</span> Logs
+            </a>
+            <?php if ($this->settings->isEnabled()): ?>
+                <a href="<?php echo Modules_XveLaravelKit_Url::action('domain/check', ['domain_id' => $this->domain->getId()]); ?>"
+                   style="display: flex; align-items: center; gap: 6px; text-decoration: none;">
+                    <span style="font-size: 14px;">&#x1F50D;</span> Check Setup
+                </a>
+                <a href="<?php echo Modules_XveLaravelKit_Url::action('domain/history', ['domain_id' => $this->domain->getId()]); ?>"
+                   style="display: flex; align-items: center; gap: 6px; text-decoration: none;">
+                    <span style="font-size: 14px;">&#x1F4C4;</span> Deploy History
+                </a>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <!-- Right: Main Content -->
+    <div style="flex: 1; min-width: 0;">
+
+        <?php if (!$this->settings->isEnabled()): ?>
+            <div class="msg-box msg-info">
+                <p>Deployment is not configured for this domain.
+                   <a href="<?php echo Modules_XveLaravelKit_Url::action('domain/settings', ['domain_id' => $this->domain->getId()]); ?>">Configure now</a>.
+                </p>
+            </div>
+        <?php endif; ?>
+
+        <!-- Application Info -->
+        <h3 style="margin-top: 0;">Application Info</h3>
+        <table class="table" style="width: 100%;">
+            <tr>
+                <td style="width: 160px;"><strong>URL</strong></td>
+                <td>
+                    <a href="http://<?php echo $this->escape($this->domain->getName()); ?>" target="_blank" rel="noopener">
+                        <?php echo $this->escape($this->domain->getName()); ?> &#x2197;
+                    </a>
+                </td>
+            </tr>
+            <?php if ($this->settings->isEnabled()): ?>
+                <?php if ($this->appInfo['has_current']): ?>
+                    <?php if ($this->appInfo['laravel_version']): ?>
+                        <tr><td><strong>Laravel</strong></td><td><?php echo $this->escape($this->appInfo['laravel_version']); ?></td></tr>
+                    <?php endif; ?>
+                    <?php if ($this->appInfo['php_version']): ?>
+                        <tr><td><strong>PHP</strong></td><td><?php echo $this->escape($this->appInfo['php_version']); ?></td></tr>
+                    <?php endif; ?>
+                <?php endif; ?>
+                <tr>
+                    <td><strong>Repository</strong></td>
+                    <td style="word-break: break-all;"><?php echo $this->escape($this->settings->getGitRepo() ?: '—'); ?></td>
+                </tr>
+                <tr><td><strong>Branch</strong></td><td><code><?php echo $this->escape($this->settings->getBranch()); ?></code></td></tr>
+                <tr><td><strong>Current Release</strong></td><td><code><?php echo $this->escape($this->currentRelease ?: '—'); ?></code></td></tr>
+                <tr><td><strong>Releases</strong></td><td><?php echo $this->escape($this->releaseCount); ?> on disk</td></tr>
+            <?php endif; ?>
+        </table>
+
+        <!-- Settings -->
+        <h3>Settings</h3>
+        <table class="table" style="width: 100%;">
+            <?php if ($this->settings->isEnabled() && $this->appInfo['has_env']): ?>
+                <tr>
+                    <td style="width: 160px;"><strong>Environment</strong></td>
+                    <td>
+                        <code><?php echo $this->escape($this->appInfo['environment'] ?: 'not set'); ?></code>
+                        <?php if (strtolower($this->appInfo['debug'] ?? '') === 'true'): ?>
+                            <span style="color: #e65100; font-weight: bold; margin-left: 8px;">DEBUG ON</span>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+                <?php if ($this->appInfo['app_url']): ?>
+                    <tr><td><strong>App URL</strong></td><td><?php echo $this->escape($this->appInfo['app_url']); ?></td></tr>
+                <?php endif; ?>
+                <?php if ($this->appInfo['db_connection']): ?>
+                    <tr><td><strong>Database</strong></td><td><?php echo $this->escape($this->appInfo['db_connection']); ?><?php if ($this->appInfo['db_database']): ?> / <code><?php echo $this->escape($this->appInfo['db_database']); ?></code><?php endif; ?></td></tr>
+                <?php endif; ?>
+                <?php if ($this->appInfo['cache_store']): ?>
+                    <tr><td><strong>Cache</strong></td><td><?php echo $this->escape($this->appInfo['cache_store']); ?></td></tr>
+                <?php endif; ?>
+                <?php if ($this->appInfo['queue_connection']): ?>
+                    <tr><td><strong>Queue</strong></td><td><?php echo $this->escape($this->appInfo['queue_connection']); ?></td></tr>
+                <?php endif; ?>
+            <?php else: ?>
+                <tr>
+                    <td style="width: 160px;"><strong>Environment variables (.env)</strong></td>
+                    <td>
+                        <a href="<?php echo Modules_XveLaravelKit_Url::action('domain/env', ['domain_id' => $this->domain->getId()]); ?>" class="btn btn-sm">Edit</a>
+                    </td>
+                </tr>
+            <?php endif; ?>
+            <tr>
+                <td><strong>Maintenance mode</strong></td>
+                <td>
+                    <?php if ($this->settings->isEnabled()): ?>
+                        <?php if ($this->maintenance): ?>
+                            <span style="color: #e65100; font-weight: bold;">DOWN</span>
+                            <form method="post" style="display: inline; margin-left: 8px;"
+                                  action="<?php echo Modules_XveLaravelKit_Url::action('domain/maintenance', ['domain_id' => $this->domain->getId()]); ?>">
+                                <input type="hidden" name="maintenance_action" value="up" />
+                                <button type="submit" class="btn btn-sm">Bring Up</button>
+                            </form>
+                        <?php else: ?>
+                            <span style="color: green;">Disabled</span>
+                            <form method="post" style="display: inline; margin-left: 8px;"
+                                  action="<?php echo Modules_XveLaravelKit_Url::action('domain/maintenance', ['domain_id' => $this->domain->getId()]); ?>">
+                                <input type="hidden" name="maintenance_action" value="down" />
+                                <button type="submit" class="btn btn-sm">Enable</button>
+                            </form>
+                        <?php endif; ?>
+                    <?php else: ?>
+                        <span style="color: #888;">Not configured</span>
+                    <?php endif; ?>
+                </td>
+            </tr>
+        </table>
+
+        <?php if ($this->settings->isEnabled()): ?>
+            <!-- Deploy Configuration -->
+            <h3>Deploy Configuration</h3>
+            <table class="table" style="width: 100%;">
+                <tr><td style="width: 160px;"><strong>Keep Releases</strong></td><td><?php echo $this->escape($this->settings->getKeepReleases()); ?></td></tr>
+                <tr><td><strong>Shared Dirs</strong></td><td><?php $dirs = $this->settings->getSharedDirs(); echo !empty($dirs) ? implode(', ', array_map(function($d) { return '<code>' . htmlspecialchars($d) . '</code>'; }, $dirs)) : '—'; ?></td></tr>
+                <tr><td><strong>Shared Files</strong></td><td><?php $files = $this->settings->getSharedFiles(); echo !empty($files) ? implode(', ', array_map(function($f) { return '<code>' . htmlspecialchars($f) . '</code>'; }, $files)) : '—'; ?></td></tr>
+                <tr><td><strong>Health Check</strong></td><td><?php echo $this->escape($this->settings->getHealthCheckUrl() ?: 'Disabled'); ?></td></tr>
+                <?php
+                $enabledSteps = $this->settings->getEnabledSteps();
+                if (!empty($enabledSteps)):
+                ?>
+                <tr>
+                    <td><strong>Deploy Steps</strong></td>
+                    <td>
+                        <?php foreach ($enabledSteps as $info): ?>
+                            <span style="display: inline-block; margin: 2px 0;">&#x2705; <?php echo $this->escape($info['label']); ?></span><br>
+                        <?php endforeach; ?>
+                    </td>
+                </tr>
+                <?php endif; ?>
+            </table>
+        <?php endif; ?>
+
+    </div>
+</div>

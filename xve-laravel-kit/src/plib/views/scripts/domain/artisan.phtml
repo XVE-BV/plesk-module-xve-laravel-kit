@@ -1,0 +1,40 @@
+<?php echo $this->renderTabs($this->tabs); ?>
+
+<form method="post" action="<?php echo Modules_XveLaravelKit_Url::action('domain/artisan', ['domain_id' => $this->domain->getId()]); ?>">
+    <div style="margin-bottom: 15px; display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 300px;">
+            <label style="font-weight: bold; display: block; margin-bottom: 5px;">php artisan</label>
+            <input type="text" name="artisan_command" value="<?php echo $this->escape($this->command); ?>"
+                   placeholder="e.g. migrate:status, route:list, config:show"
+                   style="width: 100%; padding: 8px; font-family: monospace; font-size: 14px; border: 1px solid #ccc;" />
+        </div>
+        <button type="submit" class="btn btn-primary">Run</button>
+    </div>
+</form>
+
+<div style="margin-bottom: 20px;">
+    <strong>Quick commands:</strong>
+    <?php
+    $quickCommands = [
+        'migrate:status', 'route:list', 'config:show', 'schedule:list',
+        'cache:clear', 'config:clear', 'route:clear', 'view:clear',
+        'optimize', 'optimize:clear', 'queue:failed', 'about',
+    ];
+    foreach ($quickCommands as $cmd): ?>
+        <form method="post" style="display: inline;"
+              action="<?php echo Modules_XveLaravelKit_Url::action('domain/artisan', ['domain_id' => $this->domain->getId()]); ?>">
+            <input type="hidden" name="artisan_command" value="<?php echo $this->escape($cmd); ?>" />
+            <button type="submit" class="btn btn-sm" style="margin: 2px 0;"><?php echo $this->escape($cmd); ?></button>
+        </form>
+    <?php endforeach; ?>
+</div>
+
+<?php if ($this->output !== null): ?>
+    <div style="margin-top: 15px;">
+        <h3>Output <code>php artisan <?php echo $this->escape($this->command); ?></code></h3>
+        <?php if (!$this->output['success']): ?>
+            <div class="msg-box msg-error"><p>Command failed.</p></div>
+        <?php endif; ?>
+        <pre style="background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 4px; overflow-x: auto; font-size: 13px; max-height: 600px; overflow-y: auto;"><?php echo $this->escape($this->output['output']); ?></pre>
+    </div>
+<?php endif; ?>

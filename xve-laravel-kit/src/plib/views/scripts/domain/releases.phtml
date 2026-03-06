@@ -1,0 +1,74 @@
+<?php echo $this->renderTabs($this->tabs); ?>
+
+<div style="margin-bottom: 20px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+    <?php if ($this->settings->isEnabled()): ?>
+        <form method="post" style="display: inline;"
+              action="<?php echo Modules_XveLaravelKit_Url::action('domain/deploy', ['domain_id' => $this->domain->getId()]); ?>">
+            <button type="submit" class="btn btn-primary"
+                    onclick="return confirm('Deploy from branch: <?php echo $this->escape($this->settings->getBranch()); ?>?');">
+                &#x1F680; Deploy Now
+            </button>
+        </form>
+    <?php endif; ?>
+
+    <?php if (!empty($this->releases) && count($this->releases) > 1): ?>
+        <form method="post" style="display: inline;"
+              action="<?php echo Modules_XveLaravelKit_Url::action('domain/clean', ['domain_id' => $this->domain->getId()]); ?>">
+            <button type="submit" class="btn"
+                    onclick="return confirm('Remove all releases except the current one?');">
+                &#x1F9F9; Clean Old
+            </button>
+        </form>
+    <?php endif; ?>
+</div>
+
+<?php if (empty($this->releases)): ?>
+    <p>No releases yet. Click "Deploy Now" to create the first release.</p>
+<?php else: ?>
+    <table class="table" style="width: 100%;">
+        <thead>
+            <tr>
+                <th>Release</th>
+                <th>Date</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($this->releases as $release):
+                $statusColors = [
+                    'current' => '#e8f5e9',
+                    'success' => '',
+                    'failed' => '#ffebee',
+                    'unknown' => '',
+                ];
+                $statusLabels = [
+                    'current' => '&#x2705; Active',
+                    'success' => '&#x2714; Success',
+                    'failed' => '&#x274C; Failed',
+                    'unknown' => '&#x2014;',
+                ];
+                $bg = isset($statusColors[$release['status']]) ? $statusColors[$release['status']] : '';
+                $label = isset($statusLabels[$release['status']]) ? $statusLabels[$release['status']] : '';
+            ?>
+                <tr<?php echo $bg ? ' style="background: ' . $bg . ';"' : ''; ?>>
+                    <td><code><?php echo $this->escape($release['name']); ?></code></td>
+                    <td style="white-space: nowrap;"><?php echo $this->escape($release['date']); ?></td>
+                    <td><?php echo $label; ?></td>
+                    <td>
+                        <?php if (!$release['current'] && $release['status'] !== 'failed'): ?>
+                            <form method="post" style="display: inline;"
+                                  action="<?php echo Modules_XveLaravelKit_Url::action('domain/rollback', ['domain_id' => $this->domain->getId()]); ?>">
+                                <input type="hidden" name="release" value="<?php echo $this->escape($release['name']); ?>" />
+                                <button type="submit" class="btn btn-warning"
+                                        onclick="return confirm('Rollback to <?php echo $this->escape($release['name']); ?>?');">
+                                    &#x21A9; Rollback
+                                </button>
+                            </form>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+<?php endif; ?>

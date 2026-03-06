@@ -1,0 +1,21 @@
+<?php echo $this->renderTabs($this->tabs); ?>
+
+<div style="margin-bottom: 15px; display: flex; gap: 8px; align-items: center;">
+    <form method="post" style="display: inline;"
+          action="<?php echo Modules_XveLaravelKit_Url::action('domain/log', ['domain_id' => $this->domain->getId()]); ?>">
+        <input type="hidden" name="clear_log" value="1" />
+        <button type="submit" class="btn"
+                onclick="return confirm('Clear the Laravel log file?');">
+            &#x1F5D1; Clear Log
+        </button>
+    </form>
+    <span style="color: #888;">
+        Last <?php echo $this->escape($this->lines); ?> lines of <code>shared/storage/logs/laravel.log</code>
+    </span>
+</div>
+
+<?php if (empty(trim($this->logContents))): ?>
+    <div class="msg-box msg-info"><p>Log file is empty or does not exist yet.</p></div>
+<?php else: ?>
+    <pre style="background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 4px; overflow-x: auto; font-size: 12px; max-height: 700px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word;"><?php echo $this->escape($this->logContents); ?></pre>
+<?php endif; ?>

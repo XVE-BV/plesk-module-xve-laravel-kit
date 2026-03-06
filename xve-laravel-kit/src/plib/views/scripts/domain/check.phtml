@@ -1,0 +1,60 @@
+<h2>Server Setup Check: <?php echo $this->escape($this->domain->getDisplayName()); ?></h2>
+
+<div style="margin-bottom: 20px;">
+    <a href="<?php echo Modules_XveLaravelKit_Url::action('domain/index', ['domain_id' => $this->domain->getId()]); ?>"
+       class="btn">&larr; Back</a>
+</div>
+
+<?php
+$requiredFailed = false;
+$allOk = true;
+foreach ($this->checks as $check) {
+    if (!$check['ok'] && $check['required']) $requiredFailed = true;
+    if (!$check['ok']) $allOk = false;
+}
+?>
+
+<?php if ($requiredFailed): ?>
+    <div class="msg-box msg-warning">
+        <p>Some required tools are missing. Deployments may fail until these are installed.</p>
+    </div>
+<?php elseif ($allOk): ?>
+    <div class="msg-box msg-info">
+        <p>All checks passed. The server is ready for deployments.</p>
+    </div>
+<?php else: ?>
+    <div class="msg-box msg-info">
+        <p>All required tools are available. Some optional tools are not installed.</p>
+    </div>
+<?php endif; ?>
+
+<table class="table" style="width: 100%; max-width: 800px;">
+    <thead>
+        <tr><th>Tool</th><th>Status</th><th>Details</th><th>Required</th></tr>
+    </thead>
+    <tbody>
+        <?php foreach ($this->checks as $check):
+            $bg = $check['ok'] ? '#e8f5e9' : ($check['required'] ? '#ffebee' : '#fff8e1');
+        ?>
+            <tr style="background: <?php echo $bg; ?>;">
+                <td><strong><?php echo $this->escape(ucfirst($check['name'])); ?></strong></td>
+                <td>
+                    <?php if ($check['ok']): ?>&#x2705; Available
+                    <?php elseif ($check['required']): ?>&#x274C; Missing
+                    <?php else: ?>&#x26A0; Not found<?php endif; ?>
+                </td>
+                <td><code style="font-size: 12px;"><?php echo $this->escape($check['version']); ?></code></td>
+                <td><?php echo $check['required'] ? '<strong>Yes</strong>' : '<span style="color: #888;">Optional</span>'; ?></td>
+            </tr>
+        <?php endforeach; ?>
+    </tbody>
+</table>
+
+<div style="margin-top: 20px; padding: 15px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 4px; max-width: 800px;">
+    <h3 style="margin-top: 0;">Notes</h3>
+    <ul style="margin-bottom: 0;">
+        <li>Tools are checked as the domain's system user (<code><?php echo $this->escape($this->domain->getSysUserLogin()); ?></code>).</li>
+        <li><strong>Composer</strong> is required if the "Install Composer dependencies" step is enabled.</li>
+        <li><strong>Node.js</strong> and a package manager are required if Node.js build steps are enabled.</li>
+    </ul>
+</div>
