@@ -144,6 +144,8 @@ class DomainController extends pm_Controller_Action
 
     public function settingsAction()
     {
+        $this->view->domain = $this->_domain;
+
         try {
             $this->view->publicKey = Modules_XveLaravelKit_SshKey::getPublicKey($this->_settings);
         } catch (\Throwable $e) {
