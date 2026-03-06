@@ -8,17 +8,34 @@
 <?php if (empty($this->history)): ?>
     <p>No deployment history yet.</p>
 <?php else: ?>
-    <table class="table" style="width: 100%; max-width: 800px;">
+    <table class="table" style="width: 100%;">
         <thead>
-            <tr><th>Timestamp</th><th>Release</th><th>Action</th><th>Status</th><th>User</th></tr>
+            <tr>
+                <th style="text-align: left;">Timestamp</th>
+                <th style="text-align: left;">Release</th>
+                <th style="text-align: left;">Commit</th>
+                <th style="text-align: left;">Action</th>
+                <th style="text-align: left;">Status</th>
+                <th style="text-align: left;">User</th>
+            </tr>
         </thead>
         <tbody>
             <?php foreach ($this->history as $entry):
                 $bg = ($entry['status'] === 'failed') ? '#ffebee' : '';
+                $commit = isset($entry['commit']) ? $entry['commit'] : null;
             ?>
                 <tr<?php echo $bg ? ' style="background: ' . $bg . ';"' : ''; ?>>
                     <td style="white-space: nowrap;"><?php echo $this->escape($entry['timestamp']); ?></td>
                     <td><code><?php echo $this->escape($entry['release']); ?></code></td>
+                    <td style="white-space: nowrap;">
+                        <?php if ($commit): ?>
+                            <code><?php echo $this->escape(substr($commit['hash'], 0, 7)); ?></code>
+                            <span style="color: #666; font-size: 12px;"><?php echo $this->escape($commit['branch']); ?></span>
+                            <br><span style="color: #888; font-size: 12px;"><?php echo $this->escape(mb_strimwidth($commit['message'], 0, 50, '...')); ?></span>
+                        <?php else: ?>
+                            <span style="color: #ccc;">&mdash;</span>
+                        <?php endif; ?>
+                    </td>
                     <td><?php echo $this->escape($entry['action']); ?></td>
                     <td><?php echo $entry['status'] === 'success' ? '&#x2705;' : '&#x274C;'; ?> <?php echo $this->escape($entry['status']); ?></td>
                     <td><?php echo $this->escape($entry['user'] ?? '—'); ?></td>

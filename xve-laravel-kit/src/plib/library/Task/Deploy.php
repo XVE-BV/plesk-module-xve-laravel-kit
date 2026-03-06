@@ -49,9 +49,10 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
             });
 
             $branchOverride = $this->getParam('branch', '');
+            $commitInfo = null;
 
-            $this->_runStep('git_clone', 30, function () use ($deployer, $releasePath, $branchOverride) {
-                $deployer->gitClone($releasePath, $branchOverride ?: null);
+            $this->_runStep('git_clone', 30, function () use ($deployer, $releasePath, $branchOverride, &$commitInfo) {
+                $commitInfo = $deployer->gitClone($releasePath, $branchOverride ?: null);
                 $deployer->chownRelease($releasePath);
             });
 
@@ -83,11 +84,11 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
                 $deployer->healthCheck();
             });
 
-            $this->_runStep('finalize', 100, function () use ($deployer, $release, $releasePath, $settings) {
+            $this->_runStep('finalize', 100, function () use ($deployer, $release, $releasePath, $settings, $commitInfo) {
                 $settings->setCurrentRelease($release);
                 $settings->setLastDeployTime(date('Y-m-d H:i:s'));
                 $settings->setLastDeployStatus('success');
-                $deployer->addHistory($release, 'deploy', 'success');
+                $deployer->addHistory($release, 'deploy', 'success', $commitInfo);
                 $deployer->cleanup();
                 $deployer->ensureArtisanSymlink();
                 $deployer->ensureStorageLink($releasePath);
@@ -101,7 +102,7 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
             $this->_stepStatus[$this->_currentStep] = 'error';
             $this->_saveStepStatus();
 
-            $deployer->addHistory($release, 'deploy', 'failed');
+            $deployer->addHistory($release, 'deploy', 'failed', $commitInfo);
             $settings->setLastDeployTime(date('Y-m-d H:i:s'));
             $settings->setLastDeployStatus('failed');
 

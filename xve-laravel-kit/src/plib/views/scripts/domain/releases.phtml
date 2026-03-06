@@ -40,10 +40,11 @@
     <table class="table" style="width: 100%;">
         <thead>
             <tr>
-                <th>Release</th>
-                <th>Date</th>
-                <th>Status</th>
-                <th>Actions</th>
+                <th style="text-align: left;">Release</th>
+                <th style="text-align: left;">Date</th>
+                <th style="text-align: left;">Commit</th>
+                <th style="text-align: left;">Status</th>
+                <th style="text-align: left;">Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -62,10 +63,20 @@
                 ];
                 $bg = isset($statusColors[$release['status']]) ? $statusColors[$release['status']] : '';
                 $label = isset($statusLabels[$release['status']]) ? $statusLabels[$release['status']] : '';
+                $commit = isset($release['commit']) ? $release['commit'] : null;
             ?>
                 <tr<?php echo $bg ? ' style="background: ' . $bg . ';"' : ''; ?>>
                     <td><code><?php echo $this->escape($release['name']); ?></code></td>
                     <td style="white-space: nowrap;"><?php echo $this->escape($release['date']); ?></td>
+                    <td style="white-space: nowrap;">
+                        <?php if ($commit): ?>
+                            <code title="<?php echo $this->escape($commit['message']); ?>"><?php echo $this->escape(substr($commit['hash'], 0, 7)); ?></code>
+                            <span style="color: #666; font-size: 12px;"><?php echo $this->escape($commit['branch']); ?></span>
+                            <br><span style="color: #888; font-size: 12px;" title="<?php echo $this->escape($commit['author']); ?>"><?php echo $this->escape(mb_strimwidth($commit['message'], 0, 50, '...')); ?></span>
+                        <?php else: ?>
+                            <span style="color: #ccc;">&mdash;</span>
+                        <?php endif; ?>
+                    </td>
                     <td><?php echo $label; ?></td>
                     <td>
                         <?php if (!$release['current'] && $release['status'] !== 'failed'): ?>

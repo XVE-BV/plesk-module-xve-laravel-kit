@@ -131,10 +131,15 @@ class Modules_XveLaravelKit_Deployer
 
             $isCurrent = ($name === $currentRelease);
             $status = 'unknown';
+            $commit = null;
             if ($isCurrent) {
                 $status = 'current';
-            } elseif (isset($statusMap[$name])) {
-                $status = $statusMap[$name];
+            }
+            if (isset($statusMap[$name])) {
+                if ($status === 'unknown') {
+                    $status = $statusMap[$name]['status'];
+                }
+                $commit = $statusMap[$name]['commit'];
             }
 
             $date = '';
@@ -147,6 +152,7 @@ class Modules_XveLaravelKit_Deployer
                 'date' => $date,
                 'current' => $isCurrent,
                 'status' => $status,
+                'commit' => $commit,
             ];
         }
 
@@ -548,7 +554,19 @@ class Modules_XveLaravelKit_Deployer
             throw new pm_Exception('Git clone failed: ' . $output);
         }
 
+        // Capture commit info before removing .git
+        $commitHash = trim($this->_exec('git -C ' . escapeshellarg($releasePath) . ' rev-parse HEAD 2>/dev/null'));
+        $commitMsg = trim($this->_exec('git -C ' . escapeshellarg($releasePath) . ' log -1 --pretty=%s 2>/dev/null'));
+        $commitAuthor = trim($this->_exec('git -C ' . escapeshellarg($releasePath) . ' log -1 --pretty=%an 2>/dev/null'));
+
         $this->_exec('rm -rf ' . escapeshellarg($releasePath . '/.git'));
+
+        return [
+            'hash' => $commitHash,
+            'message' => $commitMsg,
+            'author' => $commitAuthor,
+            'branch' => $branch,
+        ];
     }
 
     private function _linkShared($releasePath)
@@ -776,7 +794,7 @@ class Modules_XveLaravelKit_Deployer
         }
     }
 
-    private function _addHistory($release, $action, $status)
+    private function _addHistory($release, $action, $status, $commit = null)
     {
         $historyFile = $this->_basePath . '/' . self::HISTORY_FILE;
         $history = [];
@@ -789,13 +807,19 @@ class Modules_XveLaravelKit_Deployer
             }
         }
 
-        $history[] = [
+        $entry = [
             'release' => $release,
             'action' => $action,
             'status' => $status,
             'timestamp' => date('Y-m-d H:i:s'),
             'user' => pm_Session::getClient()->getProperty('login'),
         ];
+
+        if ($commit) {
+            $entry['commit'] = $commit;
+        }
+
+        $history[] = $entry;
 
         if (count($history) > 100) {
             $history = array_slice($history, -100);
@@ -845,22 +869,30 @@ class Modules_XveLaravelKit_Deployer
 
     private function _getReleaseStatusMap()
     {
-        $history = [];
+        $history = $this->_getRawHistory();
+        $map = [];
+        foreach ($history as $entry) {
+            if (isset($entry['release'], $entry['status'])) {
+                $map[$entry['release']] = [
+                    'status' => $entry['status'],
+                    'commit' => isset($entry['commit']) ? $entry['commit'] : null,
+                ];
+            }
+        }
+        return $map;
+    }
+
+    private function _getRawHistory()
+    {
         $historyFile = $this->_basePath . '/' . self::HISTORY_FILE;
         if ($this->_fileManager->fileExists($historyFile)) {
             $content = $this->_fileManager->fileGetContents($historyFile);
             $decoded = json_decode($content, true);
             if (is_array($decoded)) {
-                $history = $decoded;
+                return $decoded;
             }
         }
-        $map = [];
-        foreach ($history as $entry) {
-            if (isset($entry['release'], $entry['status'])) {
-                $map[$entry['release']] = $entry['status'];
-            }
-        }
-        return $map;
+        return [];
     }
 
     // ─── Internal: System Helpers ──────────────────────────────
@@ -960,7 +992,7 @@ class Modules_XveLaravelKit_Deployer
     // ─── Public API for LongTask step-by-step execution ────────
 
     public function ensureStructure() { $this->_ensureStructure(); }
-    public function gitClone($releasePath, $branchOverride = null) { $this->_gitClone($releasePath, $branchOverride); }
+    public function gitClone($releasePath, $branchOverride = null) { return $this->_gitClone($releasePath, $branchOverride); }
     public function chownRelease($releasePath) { $this->_chownRelease($releasePath); }
     public function linkShared($releasePath) { $this->_linkShared($releasePath); }
     public function switchRelease($releasePath) { $this->_switchRelease($releasePath); }
@@ -970,7 +1002,7 @@ class Modules_XveLaravelKit_Deployer
     public function ensureArtisanSymlink() { $this->_ensureArtisanSymlink(); }
     public function ensureStorageLink($releasePath) { $this->_ensureStorageLink($releasePath); }
     public function fixOwnership() { $this->_fixOwnership(); }
-    public function addHistory($release, $action, $status) { $this->_addHistory($release, $action, $status); }
+    public function addHistory($release, $action, $status, $commit = null) { $this->_addHistory($release, $action, $status, $commit); }
 
     public function runPreDeployScript($releasePath)
     {
