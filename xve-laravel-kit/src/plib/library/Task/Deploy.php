@@ -29,6 +29,9 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
         $settings = new Modules_XveLaravelKit_DeploySettings($domain);
         $deployer = new Modules_XveLaravelKit_Deployer($domain, $settings);
 
+        // Notify all logged-in users
+        $this->_setBanner($domain->getDisplayName());
+
         $release = date('Ymd_His');
         $basePath = rtrim($domain->getHomePath(), '/');
         $releasePath = $basePath . '/releases/' . $release;
@@ -189,11 +192,34 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
 
     public function onDone()
     {
+        $this->_clearBanner();
         pm_Log::info('XVE Deploy task completed: ' . $this->getParam('release', ''));
     }
 
     public function onError(\Exception $e)
     {
+        $this->_clearBanner();
         pm_Log::err('XVE Deploy task failed: ' . $e->getMessage());
+    }
+
+    private function _setBanner(string $domainName): void
+    {
+        $user = 'admin';
+        try {
+            $user = pm_Session::getClient()->getProperty('login');
+        } catch (\Throwable $e) {
+            // Task may not have session context
+        }
+
+        pm_Settings::set('xlk_deploying', json_encode([
+            'domain' => $domainName,
+            'user' => $user,
+            'started' => time(),
+        ]));
+    }
+
+    private function _clearBanner(): void
+    {
+        pm_Settings::set('xlk_deploying', '');
     }
 }
