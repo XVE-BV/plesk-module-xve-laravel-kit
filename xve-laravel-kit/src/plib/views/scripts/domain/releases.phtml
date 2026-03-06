@@ -2,10 +2,22 @@
 
 <div style="margin-bottom: 20px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
     <?php if ($this->settings->isEnabled()): ?>
-        <form method="post" style="display: inline;"
+        <form method="post" style="display: inline-flex; gap: 8px; align-items: center;"
               action="<?php echo Modules_XveLaravelKit_Url::action('domain/deploy', ['domain_id' => $this->domain->getId()]); ?>">
-            <button type="submit" class="btn btn-primary"
-                    onclick="return confirm('Deploy from branch: <?php echo $this->escape($this->settings->getBranch()); ?>?');">
+            <div style="position: relative; display: inline-block;" id="branch-selector">
+                <input type="text" name="deploy_branch" id="deploy-branch-input"
+                       value="<?php echo $this->escape($this->settings->getBranch()); ?>"
+                       placeholder="Loading branches..."
+                       autocomplete="off"
+                       style="width: 220px; padding: 6px 30px 6px 10px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px;" />
+                <span id="branch-loading" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); display: none; font-size: 11px; color: #999;">...</span>
+                <div id="branch-dropdown"
+                     style="display: none; position: absolute; top: 100%; left: 0; right: 0; max-height: 250px; overflow-y: auto;
+                            background: #fff; border: 1px solid #ccc; border-top: none; border-radius: 0 0 3px 3px;
+                            z-index: 1000; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary" id="deploy-btn">
                 &#x1F680; Deploy Now
             </button>
         </form>
@@ -72,3 +84,104 @@
         </tbody>
     </table>
 <?php endif; ?>
+
+<script>
+(function() {
+    var input = document.getElementById('deploy-branch-input');
+    var dropdown = document.getElementById('branch-dropdown');
+    var loading = document.getElementById('branch-loading');
+    var deployBtn = document.getElementById('deploy-btn');
+    var allBranches = [];
+    var defaultBranch = <?php echo json_encode($this->settings->getBranch()); ?>;
+
+    function renderDropdown(filter) {
+        var filtered = allBranches;
+        if (filter) {
+            var lower = filter.toLowerCase();
+            filtered = allBranches.filter(function(b) { return b.toLowerCase().indexOf(lower) !== -1; });
+        }
+        if (filtered.length === 0) {
+            dropdown.innerHTML = '<div style="padding: 8px 10px; color: #999; font-size: 13px;">No matching branches</div>';
+        } else {
+            dropdown.innerHTML = filtered.map(function(b) {
+                var isDefault = (b === defaultBranch);
+                return '<div class="xlk-branch-option" data-branch="' + b + '" style="padding: 6px 10px; cursor: pointer; font-size: 13px;'
+                    + (isDefault ? ' font-weight: bold;' : '') + '">'
+                    + b + (isDefault ? ' <span style="color: #999; font-size: 11px;">(default)</span>' : '')
+                    + '</div>';
+            }).join('');
+        }
+        dropdown.style.display = 'block';
+    }
+
+    function loadBranches() {
+        loading.style.display = 'inline';
+        var url = <?php echo json_encode(Modules_XveLaravelKit_Url::action('domain/branches', ['domain_id' => $this->domain->getId()])); ?>;
+        fetch(url)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                loading.style.display = 'none';
+                if (data.branches) {
+                    allBranches = data.branches;
+                }
+            })
+            .catch(function() {
+                loading.style.display = 'none';
+            });
+    }
+
+    input.addEventListener('focus', function() {
+        if (allBranches.length > 0) {
+            renderDropdown(input.value);
+        } else {
+            loading.style.display = 'inline';
+            var url = <?php echo json_encode(Modules_XveLaravelKit_Url::action('domain/branches', ['domain_id' => $this->domain->getId()])); ?>;
+            fetch(url)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    loading.style.display = 'none';
+                    if (data.branches) {
+                        allBranches = data.branches;
+                        renderDropdown(input.value);
+                    }
+                })
+                .catch(function() {
+                    loading.style.display = 'none';
+                });
+        }
+    });
+
+    input.addEventListener('input', function() {
+        renderDropdown(input.value);
+    });
+
+    dropdown.addEventListener('click', function(e) {
+        var opt = e.target.closest('.xlk-branch-option');
+        if (opt) {
+            input.value = opt.getAttribute('data-branch');
+            dropdown.style.display = 'none';
+        }
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#branch-selector')) {
+            dropdown.style.display = 'none';
+        }
+    });
+
+    deployBtn.addEventListener('click', function(e) {
+        var branch = input.value.trim();
+        if (!branch) {
+            e.preventDefault();
+            input.focus();
+            return;
+        }
+        if (!confirm('Deploy from branch: ' + branch + '?')) {
+            e.preventDefault();
+        }
+    });
+
+    // Preload branches
+    loadBranches();
+})();
+</script>

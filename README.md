@@ -98,4 +98,4 @@ xve-laravel-kit/
 
 ## License
 
-Proprietary — XVE BV / Skylence
+Proprietary — XVE BV

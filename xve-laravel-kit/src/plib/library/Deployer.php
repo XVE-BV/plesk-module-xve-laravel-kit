@@ -485,10 +485,40 @@ class Modules_XveLaravelKit_Deployer
         }
     }
 
-    private function _gitClone($releasePath)
+    public function listRemoteBranches()
     {
         $repo = $this->_settings->getGitRepo();
-        $branch = $this->_settings->getBranch();
+        if (empty($repo)) {
+            return [];
+        }
+
+        $envPrefix = '';
+        if ($this->_settings->isSshRepo()) {
+            Modules_XveLaravelKit_SshKey::ensure($this->_settings);
+            $keyPath = $this->_settings->getSshPrivateKeyPath();
+            $envPrefix = sprintf(
+                'GIT_SSH_COMMAND=%s ',
+                escapeshellarg('ssh -i ' . $keyPath . ' -o StrictHostKeyChecking=accept-new')
+            );
+        }
+
+        $cmd = sprintf('%sgit ls-remote --heads %s 2>&1', $envPrefix, escapeshellarg($repo));
+        $output = $this->_exec($cmd);
+
+        $branches = [];
+        foreach (explode("\n", trim($output)) as $line) {
+            if (preg_match('#refs/heads/(.+)$#', $line, $m)) {
+                $branches[] = $m[1];
+            }
+        }
+        sort($branches);
+        return $branches;
+    }
+
+    private function _gitClone($releasePath, $branchOverride = null)
+    {
+        $repo = $this->_settings->getGitRepo();
+        $branch = $branchOverride ?: $this->_settings->getBranch();
 
         $envPrefix = '';
         if ($this->_settings->isSshRepo()) {
@@ -930,7 +960,7 @@ class Modules_XveLaravelKit_Deployer
     // ─── Public API for LongTask step-by-step execution ────────
 
     public function ensureStructure() { $this->_ensureStructure(); }
-    public function gitClone($releasePath) { $this->_gitClone($releasePath); }
+    public function gitClone($releasePath, $branchOverride = null) { $this->_gitClone($releasePath, $branchOverride); }
     public function chownRelease($releasePath) { $this->_chownRelease($releasePath); }
     public function linkShared($releasePath) { $this->_linkShared($releasePath); }
     public function switchRelease($releasePath) { $this->_switchRelease($releasePath); }

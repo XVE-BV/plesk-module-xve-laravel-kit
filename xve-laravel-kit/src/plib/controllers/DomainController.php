@@ -202,6 +202,11 @@ class DomainController extends pm_Controller_Action
         $task = new Modules_XveLaravelKit_Task_Deploy();
         $task->setParam('domainId', $this->_domain->getId());
 
+        $branch = trim($this->getRequest()->getParam('deploy_branch', ''));
+        if (!empty($branch)) {
+            $task->setParam('branch', $branch);
+        }
+
         $taskManager = new pm_LongTask_Manager();
         $taskManager->start($task, $this->_domain);
 
@@ -285,6 +290,24 @@ class DomainController extends pm_Controller_Action
         }
 
         $this->_redirect('domain/index', ['domain_id' => $this->_domain->getId()]);
+    }
+
+    public function branchesAction()
+    {
+        $this->_helper->layout->disableLayout();
+        $this->_helper->viewRenderer->setNoRender();
+
+        try {
+            $branches = $this->_deployer->listRemoteBranches();
+            $this->getResponse()
+                ->setHeader('Content-Type', 'application/json')
+                ->setBody(json_encode(['branches' => $branches]));
+        } catch (\Throwable $e) {
+            $this->getResponse()
+                ->setHttpResponseCode(500)
+                ->setHeader('Content-Type', 'application/json')
+                ->setBody(json_encode(['error' => $e->getMessage()]));
+        }
     }
 
     public function checkAction()

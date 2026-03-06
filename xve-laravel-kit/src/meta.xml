@@ -6,7 +6,7 @@
     <category>developer</category>
     <version>1.0.0</version>
     <release>1</release>
-    <vendor>Skylence</vendor>
-    <url>https://skylence.be</url>
+    <vendor>XVE BV</vendor>
+    <url>https://xve.be</url>
     <plesk_min_version>18.0.44</plesk_min_version>
 </module>

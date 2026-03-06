@@ -48,8 +48,10 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
                 $deployer->ensureStructure();
             });
 
-            $this->_runStep('git_clone', 30, function () use ($deployer, $releasePath) {
-                $deployer->gitClone($releasePath);
+            $branchOverride = $this->getParam('branch', '');
+
+            $this->_runStep('git_clone', 30, function () use ($deployer, $releasePath, $branchOverride) {
+                $deployer->gitClone($releasePath, $branchOverride ?: null);
                 $deployer->chownRelease($releasePath);
             });
 

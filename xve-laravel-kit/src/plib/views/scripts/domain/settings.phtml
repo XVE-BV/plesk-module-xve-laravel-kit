@@ -32,3 +32,27 @@
 <?php endif; ?>
 
 <?php echo $this->form; ?>
+
+<script>
+(function() {
+    var branchInput = document.getElementById('branch');
+    if (!branchInput) return;
+
+    var list = document.createElement('datalist');
+    list.id = 'xlk-branch-list';
+    branchInput.setAttribute('list', 'xlk-branch-list');
+    branchInput.parentNode.appendChild(list);
+
+    var url = <?php echo json_encode(Modules_XveLaravelKit_Url::action('domain/branches', ['domain_id' => $this->domain->getId()])); ?>;
+    fetch(url)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.branches) {
+                list.innerHTML = data.branches.map(function(b) {
+                    return '<option value="' + b + '">';
+                }).join('');
+            }
+        })
+        .catch(function() {});
+})();
+</script>
