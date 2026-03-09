@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.5.0
+
+- Fix webhook endpoint: move to `htdocs/public/` for unauthenticated access
+- Support optional `branch` parameter in webhook JSON body
+- Remove broken `WebhookController` (Plesk has no anonymous access level)
+
 ## v1.4.1
 
 - Fix release zip versioning: sync meta.xml with git tag
