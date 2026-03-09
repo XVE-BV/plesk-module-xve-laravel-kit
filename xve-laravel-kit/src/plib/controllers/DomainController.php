@@ -182,7 +182,7 @@ class DomainController extends pm_Controller_Action
         $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
         $host = $_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? 'localhost';
         $this->view->webhookUrl = $scheme . '://' . $host
-            . Modules_XveLaravelKit_Url::action('webhook/deploy') . '?secret=' . $secret;
+            . '/modules/xve-laravel-kit/public/webhook.php?secret=' . $secret;
 
         $form = new Modules_XveLaravelKit_Form_Settings($this->_domain, $this->_settings);
 
