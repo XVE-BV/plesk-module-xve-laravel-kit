@@ -1,5 +1,24 @@
 <?php echo $this->renderTabs($this->tabs); ?>
 
+<?php if ($this->isFirstSetup): ?>
+<div style="margin-bottom: 20px; padding: 15px; background: #e8f5e9; border: 1px solid #66bb6a; border-radius: 4px;">
+    <h3 style="margin-top: 0; color: #2e7d32;">&#x1F680; Initial Setup</h3>
+    <p style="margin-bottom: 0; font-size: 13px;">
+        This domain hasn't been configured yet. Fill in the settings below and click <strong>Save</strong> to automatically:
+    </p>
+    <ul style="margin: 8px 0 0; font-size: 13px; padding-left: 20px;">
+        <li>Create the deployment directory structure (<code>releases/</code>, <code>shared/</code>)</li>
+        <li>Generate an SSH deploy key for your repository</li>
+        <li>Seed <code>.env</code> from your repo's <code>.env.example</code> (if available)</li>
+        <li>Set correct file permissions and ownership</li>
+        <li>Point the document root to <code>current/public</code></li>
+    </ul>
+    <p style="margin-bottom: 0; margin-top: 12px; font-size: 13px;">
+        New to this? Read the <a href="<?php echo Modules_XveLaravelKit_Url::action('index/guide'); ?>"><strong>step-by-step guide</strong></a> for a full walkthrough.
+    </p>
+</div>
+<?php endif; ?>
+
 <?php if (!empty($this->publicKey)): ?>
 <div style="margin-bottom: 20px; padding: 15px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 4px;">
     <h3 style="margin-top: 0;">SSH Public Key</h3>
@@ -33,6 +52,7 @@
 
 <?php echo $this->form; ?>
 
+<?php if (!$this->isFirstSetup): ?>
 <div style="margin-top: 40px; padding: 15px; background: #fdf0ef; border: 1px solid #e74c3c; border-radius: 4px;">
     <h3 style="margin-top: 0; color: #c0392b;">Danger Zone</h3>
     <p style="margin-bottom: 12px; font-size: 13px;">
@@ -46,6 +66,7 @@
         </button>
     </form>
 </div>
+<?php endif; ?>
 
 <script>
 (function() {

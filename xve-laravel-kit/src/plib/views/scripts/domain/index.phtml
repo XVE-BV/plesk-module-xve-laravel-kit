@@ -64,6 +64,71 @@
             </div>
         <?php endif; ?>
 
+        <?php if ($this->settings->isEnabled() && $this->appInfo['has_env']): ?>
+        <?php
+            // Build deploy readiness checks
+            $checks = [];
+            $appKey = $this->appInfo['app_key'] ?? '';
+            $checks['APP_KEY'] = !empty($appKey);
+
+            $appUrl = $this->appInfo['app_url'] ?? '';
+            $badUrls = ['', 'http://localhost', 'http://127.0.0.1', 'https://localhost'];
+            $checks['APP_URL'] = !in_array($appUrl, $badUrls, true);
+
+            $dbConn = $this->appInfo['db_connection'] ?? 'mysql';
+            $needsDb = !in_array($dbConn, ['sqlite'], true);
+            if ($needsDb) {
+                $dbName = $this->appInfo['db_database'] ?? '';
+                $dbUser = $this->appInfo['db_username'] ?? '';
+                $dbPass = $this->appInfo['db_password'] ?? '';
+                $defaultNames = ['', 'laravel', 'homestead', 'forge'];
+                $defaultUsers = ['', 'root', 'homestead', 'forge'];
+                $checks['DB_DATABASE'] = !in_array($dbName, $defaultNames, true);
+                $checks['DB_USERNAME'] = !in_array($dbUser, $defaultUsers, true);
+                $checks['DB_PASSWORD'] = !empty($dbPass);
+            }
+
+            $hasIssues = in_array(false, $checks, true);
+        ?>
+        <?php if ($hasIssues): ?>
+        <div style="margin-bottom: 20px; padding: 14px 16px; background: #fff3e0; border: 1px solid #ffb74d; border-radius: 6px;">
+            <strong style="color: #e65100;">Configuration checklist</strong>
+            <span style="color: #795548; font-size: 13px;"> &mdash; fix these before deploying</span>
+            <table style="width: 100%; margin-top: 10px; border-collapse: collapse;">
+                <?php
+                $labels = [
+                    'APP_KEY' => 'Application key is set',
+                    'APP_URL' => 'App URL is configured (not localhost)',
+                    'DB_DATABASE' => 'Database name is set',
+                    'DB_USERNAME' => 'Database user is set',
+                    'DB_PASSWORD' => 'Database password is set',
+                ];
+                foreach ($checks as $key => $ok):
+                ?>
+                <tr>
+                    <td style="padding: 4px 8px 4px 0; width: 24px; vertical-align: middle;">
+                        <?php if ($ok): ?>
+                            <span style="color: #2e7d32; font-size: 16px;">&#x2714;</span>
+                        <?php else: ?>
+                            <span style="color: #e65100; font-size: 16px;">&#x2718;</span>
+                        <?php endif; ?>
+                    </td>
+                    <td style="padding: 4px 0; font-size: 13px; <?php echo $ok ? 'color: #555;' : 'color: #c62828; font-weight: 600;'; ?>">
+                        <?php echo $labels[$key] ?? $key; ?>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </table>
+            <div style="margin-top: 10px;">
+                <a href="<?php echo Modules_XveLaravelKit_Url::action('domain/env', ['domain_id' => $this->domain->getId()]); ?>"
+                   class="btn btn-sm" style="background: #e65100; color: #fff; border-color: #bf360c;">
+                    Edit .env
+                </a>
+            </div>
+        </div>
+        <?php endif; ?>
+        <?php endif; ?>
+
         <!-- Application Info -->
         <h3 style="margin-top: 0;">Application Info</h3>
         <table class="table" style="width: 100%;">
@@ -110,9 +175,32 @@
                 <?php if ($this->appInfo['app_url']): ?>
                     <tr><td><strong>App URL</strong></td><td><?php echo $this->escape($this->appInfo['app_url']); ?></td></tr>
                 <?php endif; ?>
-                <?php if ($this->appInfo['db_connection']): ?>
-                    <tr><td><strong>Database</strong></td><td><?php echo $this->escape($this->appInfo['db_connection']); ?><?php if ($this->appInfo['db_database']): ?> / <code><?php echo $this->escape($this->appInfo['db_database']); ?></code><?php endif; ?></td></tr>
-                <?php endif; ?>
+                <tr>
+                    <td><strong>Database</strong></td>
+                    <td>
+                        <?php
+                        $dbConn = $this->appInfo['db_connection'] ?: 'mysql';
+                        $dbName = $this->appInfo['db_database'] ?? '';
+                        $dbUser = $this->appInfo['db_username'] ?? '';
+                        $dbPass = $this->appInfo['db_password'] ?? '';
+                        $defaultNames = ['', 'laravel', 'homestead', 'forge'];
+                        $defaultUsers = ['', 'root', 'homestead', 'forge'];
+                        $dbOk = !in_array($dbName, $defaultNames, true) && !in_array($dbUser, $defaultUsers, true) && !empty($dbPass);
+                        $isSqlite = ($dbConn === 'sqlite');
+                        ?>
+                        <?php echo $this->escape($dbConn); ?>
+                        <?php if (!$isSqlite): ?>
+                            <?php if (!empty($dbName) && !in_array($dbName, ['laravel', 'homestead', 'forge'], true)): ?>
+                                / <code><?php echo $this->escape($dbName); ?></code>
+                            <?php endif; ?>
+                            <?php if (!$dbOk): ?>
+                                <span style="color: #e65100; font-weight: bold; margin-left: 8px;">NOT CONFIGURED</span>
+                            <?php else: ?>
+                                <span style="color: #2e7d32; margin-left: 8px;">&#x2714; configured</span>
+                            <?php endif; ?>
+                        <?php endif; ?>
+                    </td>
+                </tr>
                 <?php if ($this->appInfo['cache_store']): ?>
                     <tr><td><strong>Cache</strong></td><td><?php echo $this->escape($this->appInfo['cache_store']); ?></td></tr>
                 <?php endif; ?>

@@ -92,6 +92,7 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
                 $deployer->cleanup();
                 $deployer->ensureArtisanSymlink();
                 $deployer->ensureStorageLink($releasePath);
+                $deployer->ensureAppKey();
                 $deployer->fixOwnership();
             });
 

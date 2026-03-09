@@ -1,0 +1,253 @@
+<div style="display: flex; align-items: center; gap: 14px; margin-bottom: 24px;">
+    <img src="/modules/xve-laravel-kit/images/logo.svg" alt="XVE" style="height: 40px; width: auto;" />
+    <div>
+        <h2 style="margin: 0;">How It Works</h2>
+        <p style="margin: 4px 0 0; color: #666;">A step-by-step guide to setting up and deploying your Laravel website.</p>
+    </div>
+</div>
+
+<p style="margin-bottom: 24px;">
+    <a href="<?php echo Modules_XveLaravelKit_Url::action('index/index'); ?>" class="btn">&larr; Back to overview</a>
+</p>
+
+<!-- ─── Overview ──────────────────────────────────────────── -->
+
+<div style="margin-bottom: 32px; padding: 20px; background: #f0f7ff; border: 1px solid #b3d4fc; border-radius: 6px;">
+    <h3 style="margin-top: 0;">What does this extension do?</h3>
+    <p style="font-size: 14px; line-height: 1.7;">
+        XVE Laravel Kit helps you publish your Laravel website with <strong>zero downtime</strong>.
+        Instead of uploading files directly (which can cause errors while visitors are on your site),
+        it creates a fresh copy of your code each time you deploy. When the new version is ready,
+        it instantly switches over &mdash; your visitors never see a broken page.
+    </p>
+    <p style="font-size: 14px; line-height: 1.7; margin-bottom: 0;">
+        It also gives you tools to manage your <code>.env</code> configuration file,
+        run Laravel commands, view logs, and roll back to a previous version if something goes wrong.
+    </p>
+</div>
+
+<!-- ─── Step 1 ───────────────────────────────────────────── -->
+
+<div style="margin-bottom: 24px; padding: 20px; background: #fff; border: 1px solid #ddd; border-radius: 6px;">
+    <h3 style="margin-top: 0; color: #2e7d32;">
+        <span style="display: inline-block; width: 32px; height: 32px; line-height: 32px; text-align: center; background: #2e7d32; color: #fff; border-radius: 50%; font-size: 16px; margin-right: 10px;">1</span>
+        Create Your Site
+    </h3>
+    <p style="font-size: 14px; line-height: 1.7;">
+        On the <a href="<?php echo Modules_XveLaravelKit_Url::action('index/index'); ?>">main page</a>,
+        use the <strong>"Create Laravel Site"</strong> form. You'll need:
+    </p>
+    <ul style="font-size: 14px; line-height: 2;">
+        <li><strong>Domain name</strong> &mdash; The web address for your site (e.g. <code>myapp.example.com</code>).</li>
+        <li><strong>Git repository</strong> &mdash; The address of your code repository. This is usually something like <code>git@github.com:yourname/yourproject.git</code>. Ask your developer if you're not sure.</li>
+        <li><strong>Branch</strong> &mdash; Which version of the code to deploy. Usually <code>main</code> or <code>production</code>.</li>
+    </ul>
+    <p style="font-size: 14px; line-height: 1.7; margin-bottom: 0;">
+        Click <strong>"Create Laravel Site"</strong> and the extension will automatically set up
+        everything: the hosting subscription, folder structure, file permissions, and an SSH key
+        for securely downloading your code.
+    </p>
+</div>
+
+<!-- ─── Step 2 ───────────────────────────────────────────── -->
+
+<div style="margin-bottom: 24px; padding: 20px; background: #fff; border: 1px solid #ddd; border-radius: 6px;">
+    <h3 style="margin-top: 0; color: #1565c0;">
+        <span style="display: inline-block; width: 32px; height: 32px; line-height: 32px; text-align: center; background: #1565c0; color: #fff; border-radius: 50%; font-size: 16px; margin-right: 10px;">2</span>
+        Add the Deploy Key
+    </h3>
+    <p style="font-size: 14px; line-height: 1.7;">
+        After creating the site, you'll be taken to the <strong>Settings</strong> page where you'll see
+        an <strong>SSH Public Key</strong>. This key allows the server to securely download your code
+        from the repository.
+    </p>
+    <p style="font-size: 14px; line-height: 1.7;">
+        You need to add this key to your Git hosting provider:
+    </p>
+    <ul style="font-size: 14px; line-height: 2;">
+        <li><strong>GitHub:</strong> Go to your repository &rarr; Settings &rarr; Deploy keys &rarr; Add deploy key. Paste the key and save.</li>
+        <li><strong>GitLab:</strong> Go to your project &rarr; Settings &rarr; Repository &rarr; Deploy keys. Paste the key and save.</li>
+        <li><strong>Bitbucket:</strong> Go to your repository &rarr; Settings &rarr; Access keys &rarr; Add key. Paste the key and save.</li>
+    </ul>
+    <p style="font-size: 14px; line-height: 1.7; margin-bottom: 0;">
+        <strong>Tip:</strong> You only need to do this once per site. The key is read-only &mdash;
+        it can download your code but cannot make changes to your repository.
+    </p>
+</div>
+
+<!-- ─── Step 3 ───────────────────────────────────────────── -->
+
+<div style="margin-bottom: 24px; padding: 20px; background: #fff; border: 1px solid #ddd; border-radius: 6px;">
+    <h3 style="margin-top: 0; color: #e65100;">
+        <span style="display: inline-block; width: 32px; height: 32px; line-height: 32px; text-align: center; background: #e65100; color: #fff; border-radius: 50%; font-size: 16px; margin-right: 10px;">3</span>
+        Configure Your .env File
+    </h3>
+    <p style="font-size: 14px; line-height: 1.7;">
+        Every Laravel application needs a <code>.env</code> file that contains its settings &mdash;
+        things like database passwords, email configuration, and your app's secret key.
+    </p>
+    <p style="font-size: 14px; line-height: 1.7;">
+        Go to the <strong>.env</strong> tab for your domain. If your repository has a
+        <code>.env.example</code> file, it will be pre-filled for you. Update the values
+        to match your server:
+    </p>
+    <ul style="font-size: 14px; line-height: 2;">
+        <li><code>APP_URL</code> &mdash; Your full website address (e.g. <code>https://myapp.example.com</code>)</li>
+        <li><code>DB_DATABASE</code>, <code>DB_USERNAME</code>, <code>DB_PASSWORD</code> &mdash; Your database credentials (create a database in Plesk first under Databases)</li>
+        <li><code>APP_KEY</code> &mdash; Will be generated automatically on first deploy if left empty</li>
+    </ul>
+    <p style="font-size: 14px; line-height: 1.7; margin-bottom: 0;">
+        <strong>Important:</strong> The <code>.env</code> file is shared across all deployments.
+        When you deploy a new version, your settings stay the same. You don't need to
+        re-enter them each time.
+    </p>
+</div>
+
+<!-- ─── Step 4 ───────────────────────────────────────────── -->
+
+<div style="margin-bottom: 24px; padding: 20px; background: #fff; border: 1px solid #ddd; border-radius: 6px;">
+    <h3 style="margin-top: 0; color: #6a1b9a;">
+        <span style="display: inline-block; width: 32px; height: 32px; line-height: 32px; text-align: center; background: #6a1b9a; color: #fff; border-radius: 50%; font-size: 16px; margin-right: 10px;">4</span>
+        Deploy Your Application
+    </h3>
+    <p style="font-size: 14px; line-height: 1.7;">
+        Go to the <strong>Deploy</strong> tab and click <strong>"Deploy Now"</strong>. Here's what happens behind the scenes:
+    </p>
+    <ol style="font-size: 14px; line-height: 2.2;">
+        <li>Your code is downloaded from the repository into a new, timestamped folder</li>
+        <li>PHP dependencies are installed (Composer)</li>
+        <li>JavaScript dependencies are installed and assets are built (if your app uses them)</li>
+        <li>Database migrations are run (updates your database structure if needed)</li>
+        <li>The application is optimized for speed</li>
+        <li>The site is instantly switched to the new version</li>
+    </ol>
+    <p style="font-size: 14px; line-height: 1.7; margin-bottom: 0;">
+        Your website stays online during this entire process. Visitors continue to see the old
+        version until the very last step, when the switch happens in milliseconds.
+    </p>
+</div>
+
+<!-- ─── Step 5 ───────────────────────────────────────────── -->
+
+<div style="margin-bottom: 24px; padding: 20px; background: #fff; border: 1px solid #ddd; border-radius: 6px;">
+    <h3 style="margin-top: 0; color: #00838f;">
+        <span style="display: inline-block; width: 32px; height: 32px; line-height: 32px; text-align: center; background: #00838f; color: #fff; border-radius: 50%; font-size: 16px; margin-right: 10px;">5</span>
+        Automatic Deploys (Optional)
+    </h3>
+    <p style="font-size: 14px; line-height: 1.7;">
+        You can set up your repository to deploy automatically whenever you push new code.
+        On the <strong>Settings</strong> page, you'll find a <strong>Webhook URL</strong>.
+    </p>
+    <p style="font-size: 14px; line-height: 1.7;">
+        Add this URL to your repository's webhook settings (or GitHub Actions workflow).
+        Every time new code is pushed, the server will automatically deploy the latest version.
+    </p>
+    <p style="font-size: 14px; line-height: 1.7; margin-bottom: 0;">
+        <strong>Ask your developer</strong> to set this up for you if you're not familiar with webhooks.
+        It's a one-time configuration.
+    </p>
+</div>
+
+<!-- ─── Common tasks ─────────────────────────────────────── -->
+
+<div style="margin-bottom: 32px; padding: 20px; background: #fffde7; border: 1px solid #fff176; border-radius: 6px;">
+    <h3 style="margin-top: 0;">Everyday Tasks</h3>
+
+    <h4 style="margin-bottom: 4px;">Rolling back to a previous version</h4>
+    <p style="font-size: 14px; line-height: 1.7;">
+        If a deployment causes problems, go to the <strong>Deploy</strong> tab. You'll see a list of
+        previous releases. Click <strong>"Activate"</strong> next to an older version to instantly
+        switch back. Your website will be restored to that version immediately.
+    </p>
+
+    <h4 style="margin-bottom: 4px;">Viewing error logs</h4>
+    <p style="font-size: 14px; line-height: 1.7;">
+        If your website shows an error page, go to the <strong>Log</strong> tab. This shows
+        Laravel's error log, which tells you what went wrong. You can share this information
+        with your developer to help them fix the issue.
+    </p>
+
+    <h4 style="margin-bottom: 4px;">Running artisan commands</h4>
+    <p style="font-size: 14px; line-height: 1.7;">
+        The <strong>Artisan</strong> tab lets you run Laravel commands directly from Plesk.
+        Common commands include <code>cache:clear</code> (clear cached data),
+        <code>config:cache</code> (refresh settings), and <code>queue:restart</code>
+        (restart background workers). Your developer may ask you to run specific commands here.
+    </p>
+
+    <h4 style="margin-bottom: 4px;">Maintenance mode</h4>
+    <p style="font-size: 14px; line-height: 1.7; margin-bottom: 0;">
+        On the <strong>Dashboard</strong>, you can toggle maintenance mode on or off.
+        When enabled, visitors see a "Service Unavailable" page while you make changes.
+        This is useful when you need to update the database or .env settings manually.
+    </p>
+</div>
+
+<!-- ─── How it works under the hood ──────────────────────── -->
+
+<div style="margin-bottom: 24px; padding: 20px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 6px;">
+    <h3 style="margin-top: 0;">How Zero-Downtime Deploys Work</h3>
+    <p style="font-size: 14px; line-height: 1.7;">
+        Traditional deployment replaces your files while the site is running, which can cause errors
+        if a visitor loads a page mid-update. XVE Laravel Kit uses a different approach:
+    </p>
+    <div style="font-family: monospace; font-size: 13px; background: #fff; border: 1px solid #ccc; border-radius: 4px; padding: 16px; margin: 16px 0; line-height: 1.8;">
+        your-domain.com/<br>
+        &nbsp;&nbsp;releases/<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;20250309_143000/&nbsp;&nbsp;<span style="color: #888;">&larr; deploy from March 9</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;20250310_091500/&nbsp;&nbsp;<span style="color: #888;">&larr; deploy from March 10</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;20250311_160000/&nbsp;&nbsp;<span style="color: #888;">&larr; latest deploy (March 11)</span><br>
+        &nbsp;&nbsp;shared/<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;.env&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #888;">&larr; your settings (shared across all versions)</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;storage/&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #888;">&larr; uploads, logs, cache (shared)</span><br>
+        &nbsp;&nbsp;current/ &rarr; releases/20250311_160000/&nbsp;&nbsp;<span style="color: #2e7d32; font-weight: bold;">&larr; this is what visitors see</span>
+    </div>
+    <p style="font-size: 14px; line-height: 1.7;">
+        Each deploy creates a new folder under <code>releases/</code>.
+        The <code>current/</code> pointer tells the web server which version to show.
+        Switching versions is instant because it just changes where <code>current/</code> points to.
+    </p>
+    <p style="font-size: 14px; line-height: 1.7; margin-bottom: 0;">
+        Your <code>.env</code> file and <code>storage/</code> folder (uploads, logs) live in the
+        <code>shared/</code> directory. They're linked into each release so your data is always
+        available, no matter which version is active. Old releases are kept for rollback
+        (the number is configurable in Settings).
+    </p>
+</div>
+
+<!-- ─── Troubleshooting ──────────────────────────────────── -->
+
+<div style="margin-bottom: 24px; padding: 20px; background: #fce4ec; border: 1px solid #ef9a9a; border-radius: 6px;">
+    <h3 style="margin-top: 0; color: #c62828;">Troubleshooting</h3>
+
+    <h4 style="margin-bottom: 4px;">Deploy fails with "Permission denied (publickey)"</h4>
+    <p style="font-size: 14px; line-height: 1.7;">
+        The deploy key hasn't been added to your repository, or it was added incorrectly.
+        Go to <strong>Settings</strong>, copy the SSH Public Key, and add it to your repository's
+        deploy keys. Make sure you copy the entire key (it starts with <code>ssh-ed25519</code>).
+    </p>
+
+    <h4 style="margin-bottom: 4px;">Site shows a blank page or 500 error after deploy</h4>
+    <p style="font-size: 14px; line-height: 1.7;">
+        Check the <strong>.env</strong> tab &mdash; make sure all required settings are filled in
+        (especially <code>APP_KEY</code>, database credentials, and <code>APP_URL</code>).
+        Then check the <strong>Log</strong> tab for specific error messages.
+    </p>
+
+    <h4 style="margin-bottom: 4px;">Deploy fails with "composer: command not found"</h4>
+    <p style="font-size: 14px; line-height: 1.7;">
+        Composer needs to be installed on the server. In Plesk, go to
+        <strong>Tools & Settings</strong> and make sure PHP Composer is available.
+    </p>
+
+    <h4 style="margin-bottom: 4px;">Changes to .env don't take effect</h4>
+    <p style="font-size: 14px; line-height: 1.7; margin-bottom: 0;">
+        Laravel caches its configuration for performance. After changing the <code>.env</code> file,
+        go to the <strong>Artisan</strong> tab and run <code>config:clear</code>, or tick the
+        "Cache config after saving" checkbox when editing the .env file.
+    </p>
+</div>
+
+<p style="margin-top: 24px;">
+    <a href="<?php echo Modules_XveLaravelKit_Url::action('index/index'); ?>" class="btn">&larr; Back to overview</a>
+</p>

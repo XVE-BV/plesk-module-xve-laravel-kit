@@ -10,6 +10,11 @@ class IndexController extends pm_Controller_Action
         $this->view->pageTitle = 'XVE Laravel Kit';
     }
 
+    public function guideAction()
+    {
+        // Static page — no data needed
+    }
+
     public function indexAction()
     {
         $this->view->domains = $this->_getDomains();

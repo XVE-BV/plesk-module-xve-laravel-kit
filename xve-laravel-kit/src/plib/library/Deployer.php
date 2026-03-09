@@ -40,11 +40,58 @@ class Modules_XveLaravelKit_Deployer
         $user = $this->_getSystemUser();
         $group = 'psaserv';
 
-        // Create empty .env if it doesn't exist yet
+        // Seed .env from .env.example in git repo, or create empty
         $envPath = $this->_basePath . '/shared/.env';
         if (!$this->_fileManager->fileExists($envPath)) {
-            $this->_fileManager->filePutContents($envPath, '');
+            $envExample = $this->_fetchFileFromRepo('.env.example');
+            $contents = $envExample ?: '';
+
+            // Auto-fill sensible defaults for this domain
+            $domainName = $this->_domain->getDisplayName();
+            $appUrl = 'https://' . $domainName;
+
+            // APP_KEY
+            if (empty($contents) || preg_match('/^APP_KEY=\s*$/m', $contents)) {
+                $key = 'base64:' . base64_encode(random_bytes(32));
+                if (preg_match('/^APP_KEY=/m', $contents)) {
+                    $contents = preg_replace('/^APP_KEY=.*$/m', 'APP_KEY=' . $key, $contents);
+                } elseif (!empty($contents)) {
+                    $contents = "APP_KEY={$key}\n" . $contents;
+                } else {
+                    $contents = "APP_KEY={$key}\n";
+                }
+            }
+
+            // APP_URL — replace localhost/default with actual domain
+            if (preg_match('/^APP_URL=\s*(http:\/\/localhost|http:\/\/127\.0\.0\.1)?\s*$/m', $contents)) {
+                $contents = preg_replace('/^APP_URL=.*$/m', 'APP_URL=' . $appUrl, $contents);
+            }
+
+            // APP_NAME — set from domain if still default
+            if (preg_match('/^APP_NAME=\s*(Laravel)?\s*$/m', $contents)) {
+                $name = ucfirst(explode('.', $domainName)[0]);
+                $contents = preg_replace('/^APP_NAME=.*$/m', 'APP_NAME=' . $name, $contents);
+            }
+
+            // DB_* — detect database from Plesk if available
+            $dbInfo = $this->_detectDatabase();
+            if ($dbInfo) {
+                if (preg_match('/^DB_DATABASE=\s*(laravel|homestead|forge)?\s*$/m', $contents)) {
+                    $contents = preg_replace('/^DB_DATABASE=.*$/m', 'DB_DATABASE=' . $dbInfo['name'], $contents);
+                }
+                if (!empty($dbInfo['login']) && preg_match('/^DB_USERNAME=\s*(root|homestead|forge)?\s*$/m', $contents)) {
+                    $contents = preg_replace('/^DB_USERNAME=.*$/m', 'DB_USERNAME=' . $dbInfo['login'], $contents);
+                }
+                if (preg_match('/^DB_HOST=\s*(127\.0\.0\.1|localhost)?\s*$/m', $contents)) {
+                    $contents = preg_replace('/^DB_HOST=.*$/m', 'DB_HOST=localhost', $contents);
+                }
+            }
+
+            $this->_fileManager->filePutContents($envPath, $contents);
         }
+
+        // Ensure APP_KEY is set (also handles pre-existing .env with empty key)
+        $this->ensureAppKey();
 
         // Recursive ownership + permissions on shared/ so Laravel can write
         $sharedPath = $this->_basePath . '/shared';
@@ -281,6 +328,9 @@ class Modules_XveLaravelKit_Deployer
             'db_connection' => null,
             'db_host' => null,
             'db_database' => null,
+            'db_username' => null,
+            'db_password' => null,
+            'app_key' => null,
             'cache_store' => null,
             'queue_connection' => null,
             'mail_mailer' => null,
@@ -330,6 +380,9 @@ class Modules_XveLaravelKit_Deployer
             $info['db_connection'] = $parsed['DB_CONNECTION'] ?? null;
             $info['db_host'] = $parsed['DB_HOST'] ?? null;
             $info['db_database'] = $parsed['DB_DATABASE'] ?? null;
+            $info['db_username'] = $parsed['DB_USERNAME'] ?? null;
+            $info['db_password'] = $parsed['DB_PASSWORD'] ?? null;
+            $info['app_key'] = $parsed['APP_KEY'] ?? null;
             $info['cache_store'] = $parsed['CACHE_STORE'] ?? null;
             $info['queue_connection'] = $parsed['QUEUE_CONNECTION'] ?? null;
             $info['mail_mailer'] = $parsed['MAIL_MAILER'] ?? null;
@@ -488,6 +541,41 @@ class Modules_XveLaravelKit_Deployer
     }
 
     /**
+     * Generate APP_KEY if the .env has an empty or missing APP_KEY.
+     * Safe to call multiple times — skips if key already set.
+     */
+    public function ensureAppKey()
+    {
+        $envPath = $this->_basePath . '/shared/.env';
+        try {
+            $contents = $this->_fileManager->fileExists($envPath)
+                ? $this->_fileManager->fileGetContents($envPath)
+                : '';
+        } catch (\Throwable $e) {
+            return;
+        }
+
+        $parsed = $this->_parseEnv($contents);
+        $appKey = $parsed['APP_KEY'] ?? '';
+
+        if (!empty($appKey)) {
+            return;
+        }
+
+        $key = 'base64:' . base64_encode(random_bytes(32));
+
+        if (preg_match('/^APP_KEY=/m', $contents)) {
+            $contents = preg_replace('/^APP_KEY=.*$/m', 'APP_KEY=' . $key, $contents);
+        } elseif (!empty($contents)) {
+            $contents = "APP_KEY={$key}\n" . $contents;
+        } else {
+            $contents = "APP_KEY={$key}\n";
+        }
+
+        $this->_fileManager->filePutContents($envPath, $contents);
+    }
+
+    /**
      * Run an artisan command in the current release as the system user.
      */
     public function runArtisan($command)
@@ -639,6 +727,38 @@ class Modules_XveLaravelKit_Deployer
         return rtrim($this->_domain->getHomePath(), '/');
     }
 
+    /**
+     * Detect database for this domain from Plesk's internal DB.
+     * Returns ['name' => ..., 'login' => ...] or null.
+     */
+    private function _detectDatabase()
+    {
+        try {
+            $domainId = $this->_domain->getId();
+            $output = $this->_exec(sprintf(
+                'plesk db "SELECT db.name, du.login FROM data_bases db LEFT JOIN db_users du ON du.db_id = db.id WHERE db.dom_id = %d LIMIT 1"',
+                (int) $domainId
+            ));
+            $output = trim($output);
+            if (empty($output)) {
+                return null;
+            }
+            // Output is tab-separated: name\tlogin
+            $lines = explode("\n", $output);
+            // Skip header row if present
+            $dataLine = count($lines) > 1 ? $lines[1] : $lines[0];
+            $parts = preg_split('/\t+/', trim($dataLine));
+            if (count($parts) >= 1 && !empty($parts[0]) && $parts[0] !== 'name') {
+                return [
+                    'name' => $parts[0],
+                    'login' => $parts[1] ?? '',
+                ];
+            }
+        } catch (\Throwable $e) {}
+
+        return null;
+    }
+
     private function _ensureStructure()
     {
         $paths = [
@@ -702,6 +822,63 @@ class Modules_XveLaravelKit_Deployer
         }
         sort($branches);
         return $branches;
+    }
+
+    /**
+     * Fetch a single file from the git repo without a full clone.
+     * Returns file contents or empty string on failure.
+     */
+    private function _fetchFileFromRepo($filePath)
+    {
+        $repo = $this->_settings->getGitRepo();
+        $branch = $this->_settings->getBranch();
+        if (empty($repo)) {
+            return '';
+        }
+
+        $envPrefix = '';
+        if ($this->_settings->isSshRepo()) {
+            Modules_XveLaravelKit_SshKey::ensure($this->_settings);
+            $keyPath = $this->_settings->getSshPrivateKeyPath();
+            $envPrefix = sprintf(
+                'GIT_SSH_COMMAND=%s ',
+                escapeshellarg('ssh -i ' . $keyPath . ' -o StrictHostKeyChecking=accept-new')
+            );
+        }
+
+        try {
+            $cmd = sprintf(
+                '%sgit archive --remote=%s %s %s 2>/dev/null | tar -xO %s 2>/dev/null',
+                $envPrefix,
+                escapeshellarg($repo),
+                escapeshellarg($branch),
+                escapeshellarg($filePath),
+                escapeshellarg($filePath)
+            );
+            return $this->_exec($cmd);
+        } catch (\Throwable $e) {
+            // git archive may not be supported (e.g. GitHub), try shallow clone fallback
+            try {
+                $tmpDir = '/tmp/xlk-init-' . uniqid();
+                $cloneCmd = sprintf(
+                    '%sgit clone --depth 1 --quiet --branch %s --no-checkout %s %s 2>&1 && git -C %s checkout HEAD -- %s 2>&1',
+                    $envPrefix,
+                    escapeshellarg($branch),
+                    escapeshellarg($repo),
+                    escapeshellarg($tmpDir),
+                    escapeshellarg($tmpDir),
+                    escapeshellarg($filePath)
+                );
+                $this->_exec($cloneCmd);
+                $contents = $this->_fileManager->fileGetContents($tmpDir . '/' . $filePath);
+                $this->_exec('rm -rf ' . escapeshellarg($tmpDir));
+                return $contents;
+            } catch (\Throwable $e2) {
+                // Cleanup and return empty — file may not exist in repo
+                try { $this->_exec('rm -rf ' . escapeshellarg($tmpDir)); } catch (\Throwable $e3) {}
+                return '';
+            }
+        }
     }
 
     private function _gitClone($releasePath, $branchOverride = null)
@@ -792,6 +969,13 @@ class Modules_XveLaravelKit_Deployer
                 $this->_exec(sprintf('cp -a %s %s', escapeshellarg($httpdocs), escapeshellarg($backupPath)));
             }
         }
+
+        // If 'current' is a real directory (e.g. created by Plesk when setting www-root),
+        // remove it first — mv can't atomically replace a directory with a symlink
+        $this->_exec(sprintf(
+            'test -d %1$s && ! test -L %1$s && rm -rf %1$s || true',
+            escapeshellarg($currentLink)
+        ));
 
         // Atomic symlink switch: create temp link, then rename over current
         $this->_exec(sprintf('ln -sfn %s %s', escapeshellarg($releasePath), escapeshellarg($tempLink)));

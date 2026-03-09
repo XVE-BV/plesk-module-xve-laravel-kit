@@ -51,6 +51,11 @@ class DomainController extends pm_Controller_Action
                 'action' => 'settings',
                 'link' => Modules_XveLaravelKit_Url::action('domain/settings', $domainParams),
             ],
+            [
+                'title' => 'Guide',
+                'action' => 'guide',
+                'link' => Modules_XveLaravelKit_Url::action('domain/guide', $domainParams),
+            ],
         ];
     }
 
@@ -161,6 +166,7 @@ class DomainController extends pm_Controller_Action
     public function settingsAction()
     {
         $this->view->domain = $this->_domain;
+        $this->view->isFirstSetup = !$this->_settings->isEnabled();
 
         try {
             $this->view->publicKey = Modules_XveLaravelKit_SshKey::getPublicKey($this->_settings);
@@ -370,6 +376,11 @@ class DomainController extends pm_Controller_Action
         $this->view->domain = $this->_domain;
         $this->view->settings = $this->_settings;
         $this->view->checks = $this->_deployer->checkPrerequisites();
+    }
+
+    public function guideAction()
+    {
+        $this->view->domain = $this->_domain;
     }
 
     public function historyAction()
