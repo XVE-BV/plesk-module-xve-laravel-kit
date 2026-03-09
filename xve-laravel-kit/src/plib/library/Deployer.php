@@ -56,6 +56,12 @@ class Modules_XveLaravelKit_Deployer
         $this->_exec(sprintf('find %s -type d -exec chmod 775 {} +', escapeshellarg($sharedPath)));
         $this->_exec(sprintf('find %s -type f -exec chmod 664 {} +', escapeshellarg($sharedPath)));
 
+        // Set Plesk document root to httpdocs (our deploy symlinks httpdocs -> current/public)
+        $domainName = $this->_domain->getDisplayName();
+        $this->_exec(sprintf('plesk bin site --update %s -www-root httpdocs',
+            escapeshellarg($domainName)
+        ));
+
         $this->_fixOwnership();
     }
 
