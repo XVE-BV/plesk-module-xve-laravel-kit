@@ -6,6 +6,55 @@
     </div>
 </div>
 
+<div style="margin-bottom: 24px; padding: 16px; background: #f0f7ff; border: 1px solid #b3d4fc; border-radius: 4px;">
+    <h3 style="margin-top: 0;">Create Laravel Site</h3>
+    <p style="margin-bottom: 12px; font-size: 13px; color: #555;">
+        Creates a new Plesk subscription, configures deployment, generates SSH deploy key, and sets up the directory structure — all in one step.
+    </p>
+    <form method="post" action="<?php echo Modules_XveLaravelKit_Url::action('index/create'); ?>"
+          onsubmit="return confirm('Create new Laravel site?');">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; max-width: 700px;">
+            <div>
+                <label style="display: block; font-weight: bold; margin-bottom: 4px; font-size: 13px;">Domain name *</label>
+                <input type="text" name="domain_name" required placeholder="myapp.example.com"
+                       style="width: 100%; padding: 6px 8px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px;" />
+            </div>
+            <div>
+                <label style="display: block; font-weight: bold; margin-bottom: 4px; font-size: 13px;">Git repository *</label>
+                <input type="text" name="git_repo" required placeholder="git@github.com:user/repo.git"
+                       style="width: 100%; padding: 6px 8px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px;" />
+            </div>
+            <div>
+                <label style="display: block; font-weight: bold; margin-bottom: 4px; font-size: 13px;">Branch</label>
+                <input type="text" name="branch" value="main" placeholder="main"
+                       style="width: 100%; padding: 6px 8px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px;" />
+            </div>
+            <div>
+                <label style="display: block; font-weight: bold; margin-bottom: 4px; font-size: 13px;">Node.js version</label>
+                <select name="node_version" style="width: 100%; padding: 6px 8px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px;">
+                    <?php foreach ($this->nodeVersionOptions as $val => $label): ?>
+                        <option value="<?php echo $this->escape($val); ?>"<?php echo $val === '22' ? ' selected' : ''; ?>>
+                            <?php echo $this->escape($label); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div>
+                <label style="display: block; font-weight: bold; margin-bottom: 4px; font-size: 13px;">Package manager</label>
+                <select name="node_pm" style="width: 100%; padding: 6px 8px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px;">
+                    <option value="npm">npm</option>
+                    <option value="pnpm">pnpm</option>
+                    <option value="yarn">yarn</option>
+                    <option value="auto">Auto-detect</option>
+                </select>
+            </div>
+        </div>
+        <div style="margin-top: 14px;">
+            <button type="submit" class="btn btn-primary">Create Laravel Site</button>
+        </div>
+    </form>
+</div>
+
 <?php
 $configured = array_filter($this->domains, function($d) { return $d['enabled']; });
 $unconfigured = array_filter($this->domains, function($d) { return !$d['enabled']; });
