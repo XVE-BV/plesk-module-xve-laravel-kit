@@ -322,6 +322,7 @@ class Modules_XveLaravelKit_DeploySettings
             'description' => 'composer install --no-dev --optimize-autoloader',
             'phase' => 'pre',
             'group' => 'PHP',
+            'default' => true,
         ],
         'node_install' => [
             'label' => 'Install Node.js dependencies',
@@ -357,7 +358,8 @@ class Modules_XveLaravelKit_DeploySettings
 
     public function isStepEnabled($step)
     {
-        return (bool) pm_Settings::get($this->_prefix . 'step_' . $step, false);
+        $default = self::STEPS[$step]['default'] ?? false;
+        return (bool) pm_Settings::get($this->_prefix . 'step_' . $step, $default);
     }
 
     public function setStepEnabled($step, $value)

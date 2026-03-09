@@ -316,6 +316,11 @@ class Modules_XveLaravelKit_Deployer
     /**
      * Get application info from the current release.
      */
+    public function hasCurrentRelease()
+    {
+        return $this->_dirExists($this->_basePath . '/current');
+    }
+
     public function getAppInfo()
     {
         $info = [

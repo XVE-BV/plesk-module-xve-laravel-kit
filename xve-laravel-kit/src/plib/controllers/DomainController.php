@@ -97,11 +97,15 @@ class DomainController extends pm_Controller_Action
             $this->_deployer->saveEnvContents($contents);
 
             if ($this->getRequest()->getParam('config_cache')) {
-                $result = $this->_deployer->runArtisan('config:cache');
-                if ($result['success']) {
-                    $this->_status->addMessage('info', '.env file saved and config cached.');
+                if (!$this->_deployer->hasCurrentRelease()) {
+                    $this->_status->addMessage('info', '.env file saved. Config cache will apply after your first deploy.');
                 } else {
-                    $this->_status->addMessage('warning', '.env file saved, but config:cache failed: ' . $result['output']);
+                    $result = $this->_deployer->runArtisan('config:cache');
+                    if ($result['success']) {
+                        $this->_status->addMessage('info', '.env file saved and config cached.');
+                    } else {
+                        $this->_status->addMessage('warning', '.env file saved, but config:cache failed: ' . $result['output']);
+                    }
                 }
             } else {
                 $this->_status->addMessage('info', '.env file saved.');
