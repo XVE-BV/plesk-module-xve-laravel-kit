@@ -59,6 +59,46 @@ class Modules_XveLaravelKit_Deployer
         $this->_fixOwnership();
     }
 
+    // ─── Teardown (remove everything) ─────────────────────────
+
+    /**
+     * Remove all deployment artifacts: releases, shared, current symlink, history.
+     * Restores httpdocs if an _original backup exists.
+     */
+    public function teardown()
+    {
+        $paths = [
+            $this->_basePath . '/releases',
+            $this->_basePath . '/shared',
+            $this->_basePath . '/' . self::HISTORY_FILE,
+            $this->_basePath . '/artisan',
+        ];
+
+        // Remove current symlink
+        $this->_exec('rm -f ' . escapeshellarg($this->_basePath . '/current'));
+
+        // Restore original httpdocs if backed up, otherwise remove the symlink
+        $httpdocs = $this->_basePath . '/httpdocs';
+        $originalBackup = $this->_basePath . '/releases/_original';
+        if ($this->_dirExists($originalBackup)) {
+            $this->_exec('rm -f ' . escapeshellarg($httpdocs));
+            $this->_exec(sprintf('mv %s %s', escapeshellarg($originalBackup), escapeshellarg($httpdocs)));
+        } elseif (is_link($httpdocs)) {
+            $this->_exec('rm -f ' . escapeshellarg($httpdocs));
+            $this->_exec('mkdir -p ' . escapeshellarg($httpdocs));
+            $user = $this->_getSystemUser();
+            $this->_exec(sprintf('chown %s:%s %s',
+                escapeshellarg($user),
+                escapeshellarg('psaserv'),
+                escapeshellarg($httpdocs)
+            ));
+        }
+
+        foreach ($paths as $path) {
+            $this->_exec('rm -rf ' . escapeshellarg($path));
+        }
+    }
+
     // ─── Deploy ────────────────────────────────────────────────
 
     public function deploy()

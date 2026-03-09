@@ -291,11 +291,36 @@ class DomainController extends pm_Controller_Action
             return;
         }
 
+        $errors = [];
+
+        // Remove filesystem: releases, shared, current symlink, history
+        try {
+            $this->_deployer->teardown();
+        } catch (\Throwable $e) {
+            $errors[] = 'Filesystem cleanup: ' . $e->getMessage();
+        }
+
+        // Remove SSH deploy keys
+        try {
+            $keyDir = $this->_settings->getSshKeyDir();
+            if (is_dir($keyDir)) {
+                Modules_XveLaravelKit_SshKey::remove($this->_settings);
+            }
+        } catch (\Throwable $e) {
+            $errors[] = 'SSH key removal: ' . $e->getMessage();
+        }
+
+        // Remove settings
         try {
             $this->_settings->delete();
-            $this->_status->addMessage('info', 'Configuration removed for ' . $this->_domain->getDisplayName() . '.');
         } catch (\Throwable $e) {
-            $this->_status->addMessage('error', 'Failed to delete configuration: ' . $e->getMessage());
+            $errors[] = 'Settings removal: ' . $e->getMessage();
+        }
+
+        if (!empty($errors)) {
+            $this->_status->addMessage('warning', 'Setup removed with warnings: ' . implode('; ', $errors));
+        } else {
+            $this->_status->addMessage('info', 'Deployment setup completely removed for ' . $this->_domain->getDisplayName() . '.');
         }
 
         $url = Modules_XveLaravelKit_Url::action('index/index');

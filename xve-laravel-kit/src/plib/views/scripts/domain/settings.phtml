@@ -33,6 +33,20 @@
 
 <?php echo $this->form; ?>
 
+<div style="margin-top: 40px; padding: 15px; background: #fdf0ef; border: 1px solid #e74c3c; border-radius: 4px;">
+    <h3 style="margin-top: 0; color: #c0392b;">Danger Zone</h3>
+    <p style="margin-bottom: 12px; font-size: 13px;">
+        Remove the entire deployment setup for this domain. This deletes all releases, shared files (.env, storage), deploy history, and SSH keys. The domain itself is not affected.
+    </p>
+    <form method="post" action="<?php echo Modules_XveLaravelKit_Url::action('domain/delete', ['domain_id' => $this->domain->getId()]); ?>">
+        <button type="submit" class="btn"
+                style="background: #e74c3c; color: #fff; border-color: #c0392b;"
+                onclick="return confirm('Are you sure? This will permanently delete all releases, shared files (.env, storage), and deploy history. This cannot be undone.');">
+            Remove Deployment Setup
+        </button>
+    </form>
+</div>
+
 <script>
 (function() {
     var branchInput = document.getElementById('branch');

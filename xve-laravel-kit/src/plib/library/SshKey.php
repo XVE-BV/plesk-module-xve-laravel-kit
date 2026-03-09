@@ -21,6 +21,14 @@ class Modules_XveLaravelKit_SshKey
         pm_ApiCli::callSbin('xve-exec.sh', [$cmd]);
     }
 
+    public static function remove(Modules_XveLaravelKit_DeploySettings $settings)
+    {
+        $keyDir = $settings->getSshKeyDir();
+        if (is_dir($keyDir)) {
+            pm_ApiCli::callSbin('xve-exec.sh', ['rm -rf ' . escapeshellarg($keyDir)]);
+        }
+    }
+
     public static function getPublicKey(Modules_XveLaravelKit_DeploySettings $settings)
     {
         self::ensure($settings);
