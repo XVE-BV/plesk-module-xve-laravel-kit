@@ -74,6 +74,21 @@ class DomainController extends pm_Controller_Action
 
         if ($this->getRequest()->isPost()) {
             $contents = $this->getRequest()->getParam('env_contents');
+            $forceOverride = $this->getRequest()->getParam('force_save');
+
+            $issues = $this->_deployer->validateEnvContents($contents);
+            $errors = array_filter($issues, function ($i) { return $i['level'] === 'error'; });
+
+            // Block save if there are errors (unless force-overridden for warnings-only)
+            if (!empty($errors) || (!empty($issues) && !$forceOverride)) {
+                $this->view->envContents = $contents;
+                $this->view->envExample = $this->_deployer->getEnvExampleContents();
+                $this->view->validationIssues = $issues;
+                $this->view->hasErrors = !empty($errors);
+                $this->view->configCache = $this->getRequest()->getParam('config_cache');
+                return;
+            }
+
             $this->_deployer->saveEnvContents($contents);
 
             if ($this->getRequest()->getParam('config_cache')) {

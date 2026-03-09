@@ -273,6 +273,101 @@ class Modules_XveLaravelKit_Deployer
     }
 
     /**
+     * Validate .env contents before saving.
+     *
+     * Returns an array of error/warning messages. Empty array = valid.
+     * Each entry: ['level' => 'error'|'warning', 'message' => '...']
+     */
+    public function validateEnvContents($contents)
+    {
+        $issues = [];
+        $lines = explode("\n", $contents);
+        $keys = [];
+
+        foreach ($lines as $lineNum => $line) {
+            $trimmed = trim($line);
+            $num = $lineNum + 1;
+
+            // Skip empty lines and comments
+            if (empty($trimmed) || $trimmed[0] === '#') {
+                continue;
+            }
+
+            // Must contain =
+            if (strpos($trimmed, '=') === false) {
+                $issues[] = [
+                    'level' => 'error',
+                    'message' => "Line {$num}: Invalid syntax — missing '=' sign: " . mb_substr($trimmed, 0, 60),
+                ];
+                continue;
+            }
+
+            $pos = strpos($trimmed, '=');
+            $key = substr($trimmed, 0, $pos);
+            $value = substr($trimmed, $pos + 1);
+
+            // Key must be a valid env variable name
+            if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $key)) {
+                $issues[] = [
+                    'level' => 'error',
+                    'message' => "Line {$num}: Invalid key name '{$key}' — only letters, digits, and underscores allowed.",
+                ];
+            }
+
+            // Check for duplicate keys
+            if (isset($keys[$key])) {
+                $issues[] = [
+                    'level' => 'warning',
+                    'message' => "Line {$num}: Duplicate key '{$key}' (first seen on line {$keys[$key]}).",
+                ];
+            } else {
+                $keys[$key] = $num;
+            }
+
+            // Check for unbalanced quotes in value
+            $quoteCount = substr_count($value, '"') - substr_count($value, '\\"');
+            if ($quoteCount % 2 !== 0) {
+                $issues[] = [
+                    'level' => 'error',
+                    'message' => "Line {$num}: Unbalanced double quotes for key '{$key}'.",
+                ];
+            }
+            $singleQuotes = substr_count($value, "'");
+            if ($singleQuotes % 2 !== 0) {
+                $issues[] = [
+                    'level' => 'error',
+                    'message' => "Line {$num}: Unbalanced single quotes for key '{$key}'.",
+                ];
+            }
+        }
+
+        // Warn about missing essential Laravel keys
+        $recommended = ['APP_KEY', 'APP_ENV', 'APP_URL'];
+        foreach ($recommended as $rk) {
+            if (!isset($keys[$rk])) {
+                $issues[] = [
+                    'level' => 'warning',
+                    'message' => "Missing recommended key: {$rk}",
+                ];
+            }
+        }
+
+        // APP_KEY must not be empty if present
+        if (isset($keys[$rk = 'APP_KEY'])) {
+            $appKeyLine = $lines[$keys[$rk] - 1];
+            $appKeyValue = trim(substr($appKeyLine, strpos($appKeyLine, '=') + 1));
+            if (empty($appKeyValue)) {
+                $issues[] = [
+                    'level' => 'warning',
+                    'message' => "APP_KEY is empty. Run 'php artisan key:generate' after saving.",
+                ];
+            }
+        }
+
+        return $issues;
+    }
+
+    /**
      * Write the shared .env file.
      */
     public function saveEnvContents($contents)
