@@ -56,9 +56,9 @@ class Modules_XveLaravelKit_Deployer
         $this->_exec(sprintf('find %s -type d -exec chmod 775 {} +', escapeshellarg($sharedPath)));
         $this->_exec(sprintf('find %s -type f -exec chmod 664 {} +', escapeshellarg($sharedPath)));
 
-        // Set Plesk document root to httpdocs (our deploy symlinks httpdocs -> current/public)
+        // Set Plesk document root to current/public (current is a symlink to the active release)
         $domainName = $this->_domain->getDisplayName();
-        $this->_exec(sprintf('plesk bin site --update %s -www-root httpdocs',
+        $this->_exec(sprintf('plesk bin site --update %s -www-root current/public',
             escapeshellarg($domainName)
         ));
 
@@ -73,24 +73,26 @@ class Modules_XveLaravelKit_Deployer
      */
     public function teardown()
     {
-        $paths = [
-            $this->_basePath . '/releases',
-            $this->_basePath . '/shared',
-            $this->_basePath . '/' . self::HISTORY_FILE,
-            $this->_basePath . '/artisan',
-        ];
+        // Reset Plesk document root back to httpdocs
+        $domainName = $this->_domain->getDisplayName();
+        try {
+            $this->_exec(sprintf('plesk bin site --update %s -www-root httpdocs',
+                escapeshellarg($domainName)
+            ));
+        } catch (\Throwable $e) {}
 
         // Remove current symlink
         $this->_exec('rm -f ' . escapeshellarg($this->_basePath . '/current'));
+        $this->_exec('rm -f ' . escapeshellarg($this->_basePath . '/artisan'));
+        $this->_exec('rm -f ' . escapeshellarg($this->_basePath . '/' . self::HISTORY_FILE));
 
-        // Restore original httpdocs if backed up, otherwise remove the symlink
+        // Restore original httpdocs if backed up, otherwise ensure it exists
         $httpdocs = $this->_basePath . '/httpdocs';
         $originalBackup = $this->_basePath . '/releases/_original';
         if ($this->_dirExists($originalBackup)) {
-            $this->_exec('rm -f ' . escapeshellarg($httpdocs));
+            $this->_exec('rm -rf ' . escapeshellarg($httpdocs));
             $this->_exec(sprintf('mv %s %s', escapeshellarg($originalBackup), escapeshellarg($httpdocs)));
-        } elseif (is_link($httpdocs)) {
-            $this->_exec('rm -f ' . escapeshellarg($httpdocs));
+        } elseif (!$this->_dirExists($httpdocs)) {
             $this->_exec('mkdir -p ' . escapeshellarg($httpdocs));
             $user = $this->_getSystemUser();
             $this->_exec(sprintf('chown %s:%s %s',
@@ -100,9 +102,9 @@ class Modules_XveLaravelKit_Deployer
             ));
         }
 
-        foreach ($paths as $path) {
-            $this->_exec('rm -rf ' . escapeshellarg($path));
-        }
+        // Remove releases and shared
+        $this->_exec('rm -rf ' . escapeshellarg($this->_basePath . '/releases'));
+        $this->_exec('rm -rf ' . escapeshellarg($this->_basePath . '/shared'));
     }
 
     // ─── Deploy ────────────────────────────────────────────────
@@ -781,25 +783,19 @@ class Modules_XveLaravelKit_Deployer
     {
         $currentLink = $this->_basePath . '/current';
         $tempLink = $this->_basePath . '/current_tmp_' . getmypid();
-        $httpdocs = $this->_basePath . '/httpdocs';
 
+        // Backup original httpdocs on first deploy (for teardown restore)
+        $httpdocs = $this->_basePath . '/httpdocs';
         if (!is_link($httpdocs) && $this->_dirExists($httpdocs)) {
             $backupPath = $this->_basePath . '/releases/_original';
             if (!$this->_dirExists($backupPath)) {
                 $this->_exec(sprintf('cp -a %s %s', escapeshellarg($httpdocs), escapeshellarg($backupPath)));
             }
-            $this->_exec('rm -rf ' . escapeshellarg($httpdocs));
         }
 
+        // Atomic symlink switch: create temp link, then rename over current
         $this->_exec(sprintf('ln -sfn %s %s', escapeshellarg($releasePath), escapeshellarg($tempLink)));
         $this->_exec(sprintf('mv -Tf %s %s', escapeshellarg($tempLink), escapeshellarg($currentLink)));
-
-        $webRoot = $this->_dirExists($releasePath . '/public')
-            ? $currentLink . '/public'
-            : $currentLink;
-
-        $this->_exec('rm -f ' . escapeshellarg($httpdocs));
-        $this->_exec(sprintf('ln -sfn %s %s', escapeshellarg($webRoot), escapeshellarg($httpdocs)));
     }
 
     private function _ensureArtisanSymlink()
