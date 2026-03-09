@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.4.1
+
+- Fix release zip versioning: sync meta.xml with git tag
+
 ## v1.4.0
 
 - Auto-refresh releases page when deployment finishes
