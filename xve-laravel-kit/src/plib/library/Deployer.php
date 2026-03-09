@@ -318,7 +318,9 @@ class Modules_XveLaravelKit_Deployer
      */
     public function hasCurrentRelease()
     {
-        return $this->_dirExists($this->_basePath . '/current');
+        $currentPath = $this->_basePath . '/current';
+        return $this->_dirExists($currentPath)
+            && $this->_fileManager->fileExists($currentPath . '/artisan');
     }
 
     public function getAppInfo()
