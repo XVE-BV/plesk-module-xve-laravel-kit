@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.4.0
+
+- Auto-refresh releases page when deployment finishes
+
 ## v1.3.0
 
 - Park failed releases to `_last_failed_release` for inspection instead of deleting

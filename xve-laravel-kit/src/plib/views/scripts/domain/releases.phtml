@@ -198,5 +198,27 @@
 
     // Preload branches
     loadBranches();
+
+    // ─── Auto-refresh when deploy finishes ───
+    var statusUrl = <?php echo json_encode(Modules_XveLaravelKit_Url::action('domain/deploy-status', ['domain_id' => $this->domain->getId()])); ?>;
+    var pollTimer = null;
+    var wasDeploying = false;
+
+    function pollDeployStatus() {
+        fetch(statusUrl)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.deploying) {
+                    wasDeploying = true;
+                } else if (wasDeploying) {
+                    clearInterval(pollTimer);
+                    window.location.reload();
+                }
+            })
+            .catch(function() {});
+    }
+
+    pollTimer = setInterval(pollDeployStatus, 3000);
+    pollDeployStatus();
 })();
 </script>

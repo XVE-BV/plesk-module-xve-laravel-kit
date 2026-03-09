@@ -375,6 +375,31 @@ class DomainController extends pm_Controller_Action
         }
     }
 
+    public function deployStatusAction()
+    {
+        $this->_helper->layout->disableLayout();
+        $this->_helper->viewRenderer->setNoRender();
+
+        // Use the deploy banner setting as a lightweight indicator
+        $deploying = pm_Settings::get('xlk_deploying', '');
+        $isRunning = false;
+
+        if (!empty($deploying)) {
+            $info = json_decode($deploying, true);
+            // Check if the deploy is for this domain
+            if ($info && isset($info['domain'])
+                && $info['domain'] === $this->_domain->getDisplayName()) {
+                $isRunning = true;
+            }
+        }
+
+        $this->getResponse()
+            ->setHeader('Content-Type', 'application/json')
+            ->setBody(json_encode([
+                'deploying' => $isRunning,
+            ]));
+    }
+
     public function checkAction()
     {
         $this->view->domain = $this->_domain;
