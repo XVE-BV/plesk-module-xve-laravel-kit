@@ -116,6 +116,13 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
                 }
             }
 
+            // Remove the failed release directory to prevent pile-up
+            try {
+                $deployer->removeRelease($releasePath);
+            } catch (\Throwable $cleanupError) {
+                // Best-effort cleanup
+            }
+
             $this->setParam('result', 'error');
             $this->setParam('release', $release);
             $this->setParam('error', $e->getMessage());

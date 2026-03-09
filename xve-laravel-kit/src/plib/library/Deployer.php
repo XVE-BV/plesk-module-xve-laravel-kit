@@ -1380,6 +1380,7 @@ class Modules_XveLaravelKit_Deployer
     public function runDeploySteps($phase, $releasePath) { $this->_runDeploySteps($phase, $releasePath); }
     public function healthCheck() { $this->_healthCheck(); }
     public function cleanup() { $this->_cleanup(); }
+    public function removeRelease($releasePath) { $this->_exec('rm -rf ' . escapeshellarg($releasePath)); }
     public function ensureArtisanSymlink() { $this->_ensureArtisanSymlink(); }
     public function ensureStorageLink($releasePath) { $this->_ensureStorageLink($releasePath); }
     public function fixOwnership() { $this->_fixOwnership(); }
