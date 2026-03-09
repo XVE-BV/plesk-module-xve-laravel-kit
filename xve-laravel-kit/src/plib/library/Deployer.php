@@ -987,6 +987,11 @@ class Modules_XveLaravelKit_Deployer
         // Atomic symlink switch: create temp link, then rename over current
         $this->_exec(sprintf('ln -sfn %s %s', escapeshellarg($releasePath), escapeshellarg($tempLink)));
         $this->_exec(sprintf('mv -Tf %s %s', escapeshellarg($tempLink), escapeshellarg($currentLink)));
+
+        // Fix symlink ownership — nginx's disable_symlinks if_not_owner
+        // requires the symlink itself to be owned by the domain user
+        $user = $this->_getSystemUser();
+        $this->_exec(sprintf('chown -h %s:psaserv %s', escapeshellarg($user), escapeshellarg($currentLink)));
     }
 
     private function _ensureArtisanSymlink()
