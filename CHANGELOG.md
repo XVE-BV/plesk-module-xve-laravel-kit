@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.3.0
+
+- Park failed releases to `_last_failed_release` for inspection instead of deleting
+- Only one failed release kept on disk; each new failure replaces the previous one
+- Falls back to deletion if parking fails
+
+## v1.2.0
+
+- Clean up failed release directories to prevent pile-up
+- Fix 403 after deploy: chown symlink for nginx `disable_symlinks if_not_owner`
+- Fix `hasCurrentRelease` to check for artisan file, not just directory
+- Enable `composer_install` by default, skip `config:cache` when no release exists
+- Add smart .env initialization, deploy readiness checklist, and guide pages
+- Add quick-setup form to create Laravel sites in one step
+- Set www-root to `current/public`, simplify release switching
+- Add full teardown with danger zone UI on settings page
+- Add Node.js Toolkit version selector and auto-setup for new domains
+
 ## v1.1.0
 
 - Add .env validation before save (syntax, duplicate keys, required Laravel keys)

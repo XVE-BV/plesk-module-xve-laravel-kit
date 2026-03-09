@@ -1381,6 +1381,17 @@ class Modules_XveLaravelKit_Deployer
     public function healthCheck() { $this->_healthCheck(); }
     public function cleanup() { $this->_cleanup(); }
     public function removeRelease($releasePath) { $this->_exec('rm -rf ' . escapeshellarg($releasePath)); }
+
+    public function parkFailedRelease($releasePath)
+    {
+        $basePath = rtrim($this->_domain->getHomePath(), '/');
+        $parkedPath = $basePath . '/releases/_last_failed_release';
+
+        // Remove any previously parked failed release
+        $this->_exec('rm -rf ' . escapeshellarg($parkedPath));
+        // Move the failed release to the parked location
+        $this->_exec('mv ' . escapeshellarg($releasePath) . ' ' . escapeshellarg($parkedPath));
+    }
     public function ensureArtisanSymlink() { $this->_ensureArtisanSymlink(); }
     public function ensureStorageLink($releasePath) { $this->_ensureStorageLink($releasePath); }
     public function fixOwnership() { $this->_fixOwnership(); }

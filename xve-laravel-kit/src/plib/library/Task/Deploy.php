@@ -116,11 +116,16 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
                 }
             }
 
-            // Remove the failed release directory to prevent pile-up
+            // Park the failed release for inspection (replaces any previous failure)
             try {
-                $deployer->removeRelease($releasePath);
+                $deployer->parkFailedRelease($releasePath);
             } catch (\Throwable $cleanupError) {
-                // Best-effort cleanup
+                // If parking fails, fall back to removing it
+                try {
+                    $deployer->removeRelease($releasePath);
+                } catch (\Throwable $removeError) {
+                    // Best-effort cleanup
+                }
             }
 
             $this->setParam('result', 'error');
