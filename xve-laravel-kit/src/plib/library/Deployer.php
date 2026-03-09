@@ -27,6 +27,38 @@ class Modules_XveLaravelKit_Deployer
         $this->_basePath = $this->_getBasePath();
     }
 
+    // ─── Initialize (first-time setup) ────────────────────────
+
+    /**
+     * Set up the directory structure and shared files for a new domain.
+     * Safe to call multiple times — skips anything that already exists.
+     */
+    public function initialize()
+    {
+        $this->_ensureStructure();
+
+        $user = $this->_getSystemUser();
+        $group = 'psaserv';
+
+        // Create empty .env if it doesn't exist yet
+        $envPath = $this->_basePath . '/shared/.env';
+        if (!$this->_fileManager->fileExists($envPath)) {
+            $this->_fileManager->filePutContents($envPath, '');
+        }
+
+        // Recursive ownership + permissions on shared/ so Laravel can write
+        $sharedPath = $this->_basePath . '/shared';
+        $this->_exec(sprintf('chown -R %s:%s %s',
+            escapeshellarg($user),
+            escapeshellarg($group),
+            escapeshellarg($sharedPath)
+        ));
+        $this->_exec(sprintf('find %s -type d -exec chmod 775 {} +', escapeshellarg($sharedPath)));
+        $this->_exec(sprintf('find %s -type f -exec chmod 664 {} +', escapeshellarg($sharedPath)));
+
+        $this->_fixOwnership();
+    }
+
     // ─── Deploy ────────────────────────────────────────────────
 
     public function deploy()
@@ -495,16 +527,24 @@ class Modules_XveLaravelKit_Deployer
     {
         $checks = [];
         $user = $this->_getSystemUser();
+        $pathDirs = [];
+        $nodeBinDir = $this->_settings->getNodeBinDir();
+        if (!empty($nodeBinDir)) {
+            $pathDirs[] = $nodeBinDir;
+        }
         $phpBinDir = $this->_getPhpBinDir();
-        $pathPrefix = $phpBinDir ? 'export PATH="' . $phpBinDir . ':$PATH" && ' : '';
+        if (!empty($phpBinDir)) {
+            $pathDirs[] = $phpBinDir;
+        }
+        $pathPrefix = !empty($pathDirs) ? 'export PATH="' . implode(':', $pathDirs) . ':$PATH" && ' : '';
 
         $checks['git'] = $this->_checkTool('git', 'git --version');
         $checks['php'] = $this->_checkToolAsUser($user, $pathPrefix . 'php --version | head -1');
         $checks['composer'] = $this->_checkToolAsUser($user, $pathPrefix . 'composer --version 2>&1 | head -1');
-        $checks['node'] = $this->_checkToolAsUser($user, 'node --version 2>&1');
-        $checks['npm'] = $this->_checkToolAsUser($user, 'npm --version 2>&1');
-        $checks['pnpm'] = $this->_checkToolAsUser($user, 'pnpm --version 2>&1');
-        $checks['yarn'] = $this->_checkToolAsUser($user, 'yarn --version 2>&1');
+        $checks['node'] = $this->_checkToolAsUser($user, $pathPrefix . 'node --version 2>&1');
+        $checks['npm'] = $this->_checkToolAsUser($user, $pathPrefix . 'npm --version 2>&1');
+        $checks['pnpm'] = $this->_checkToolAsUser($user, $pathPrefix . 'pnpm --version 2>&1');
+        $checks['yarn'] = $this->_checkToolAsUser($user, $pathPrefix . 'yarn --version 2>&1');
 
         $sshKeyExists = false;
         try {
@@ -775,8 +815,16 @@ class Modules_XveLaravelKit_Deployer
             return;
         }
 
+        $pathDirs = [];
+        $nodeBinDir = $this->_settings->getNodeBinDir();
+        if (!empty($nodeBinDir)) {
+            $pathDirs[] = $nodeBinDir;
+        }
         $phpBinDir = $this->_getPhpBinDir();
-        $pathExport = $phpBinDir ? 'export PATH="' . $phpBinDir . ':$PATH"' . "\n" : '';
+        if (!empty($phpBinDir)) {
+            $pathDirs[] = $phpBinDir;
+        }
+        $pathExport = !empty($pathDirs) ? 'export PATH="' . implode(':', $pathDirs) . ':$PATH"' . "\n" : '';
 
         $scriptPath = $releasePath . '/.xve-' . $phase . '.sh';
         $this->_fileManager->filePutContents($scriptPath,

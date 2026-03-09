@@ -196,6 +196,60 @@ class Modules_XveLaravelKit_DeploySettings
         pm_Settings::set($this->_prefix . 'node_pm', $value);
     }
 
+    // -- Node.js version (Plesk Node.js Toolkit) --
+
+    public function getNodeVersion()
+    {
+        return pm_Settings::get($this->_prefix . 'node_version', 'system');
+    }
+
+    public function setNodeVersion($value)
+    {
+        pm_Settings::set($this->_prefix . 'node_version', $value);
+    }
+
+    /**
+     * Get the bin directory for the selected Node.js version.
+     * Returns empty string for 'system' (use whatever is in PATH).
+     */
+    public function getNodeBinDir()
+    {
+        $version = $this->getNodeVersion();
+        if ($version === 'system' || empty($version)) {
+            return '';
+        }
+        $dir = '/opt/plesk/node/' . $version . '/bin';
+        return $dir;
+    }
+
+    /**
+     * Discover installed Node.js versions from the Plesk Node.js Toolkit.
+     * Returns array like ['22' => '22 (/opt/plesk/node/22/bin/node)', ...]
+     */
+    public static function getAvailableNodeVersions()
+    {
+        $versions = [];
+        $baseDir = '/opt/plesk/node';
+        if (!is_dir($baseDir)) {
+            return $versions;
+        }
+        $dirs = @scandir($baseDir);
+        if (!is_array($dirs)) {
+            return $versions;
+        }
+        foreach ($dirs as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+            $nodeBin = $baseDir . '/' . $entry . '/bin/node';
+            if (file_exists($nodeBin)) {
+                $versions[$entry] = $entry;
+            }
+        }
+        ksort($versions, SORT_NUMERIC);
+        return $versions;
+    }
+
     // -- Shared directories / files --
 
     const DEFAULT_SHARED_DIRS = "storage\nlogs";
@@ -336,7 +390,7 @@ class Modules_XveLaravelKit_DeploySettings
             'health_check_url', 'health_check_timeout',
             'pre_deploy_script', 'post_deploy_script',
             'current_release', 'last_deploy_time', 'last_deploy_status',
-            'webhook_secret', 'shared_dirs', 'shared_files', 'node_pm', 'deploy_mode',
+            'webhook_secret', 'shared_dirs', 'shared_files', 'node_pm', 'node_version', 'deploy_mode',
         ];
         foreach ($keys as $key) {
             pm_Settings::set($this->_prefix . $key, null);

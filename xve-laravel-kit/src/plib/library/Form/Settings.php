@@ -63,6 +63,21 @@ class Modules_XveLaravelKit_Form_Settings extends pm_Form_Simple
             'description' => 'Controls whether deployment commands (composer, npm, git, artisan) produce output',
         ]);
 
+        $nodeVersionOptions = ['system' => 'System default'];
+        $toolkitVersions = Modules_XveLaravelKit_DeploySettings::getAvailableNodeVersions();
+        foreach ($toolkitVersions as $ver => $label) {
+            $nodeVersionOptions[$ver] = 'Node.js ' . $label . ' (Toolkit)';
+        }
+
+        $this->addElement('select', 'node_version', [
+            'label' => 'Node.js Version',
+            'value' => $this->_settings->getNodeVersion(),
+            'multiOptions' => $nodeVersionOptions,
+            'description' => empty($toolkitVersions)
+                ? 'No Node.js Toolkit versions found. Install the "Node.js" extension in Plesk to manage versions.'
+                : 'Select the Node.js version from the Plesk Node.js Toolkit to use during deploys',
+        ]);
+
         $this->addElement('select', 'node_pm', [
             'label' => 'Node Package Manager',
             'value' => $this->_settings->getNodePackageManager(),

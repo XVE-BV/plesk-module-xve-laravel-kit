@@ -182,6 +182,7 @@ class DomainController extends pm_Controller_Action
             $this->_settings->setSharedDirs($form->getValue('shared_dirs'));
             $this->_settings->setSharedFiles($form->getValue('shared_files'));
             $this->_settings->setDeployMode($form->getValue('deploy_mode'));
+            $this->_settings->setNodeVersion($form->getValue('node_version'));
             $this->_settings->setNodePackageManager($form->getValue('node_pm'));
             foreach (array_keys(Modules_XveLaravelKit_DeploySettings::STEPS) as $step) {
                 $this->_settings->setStepEnabled($step, (bool) $form->getValue('step_' . $step));
@@ -191,10 +192,21 @@ class DomainController extends pm_Controller_Action
             $this->_settings->setHealthCheckTimeout((int) $form->getValue('health_check_timeout'));
             $this->_settings->setPreDeployScript($form->getValue('pre_deploy_script'));
             $this->_settings->setPostDeployScript($form->getValue('post_deploy_script'));
+            $wasEnabled = $this->_settings->isEnabled();
             $this->_settings->setEnabled(true);
             $this->_settings->save();
 
-            $this->_status->addMessage('info', 'Settings saved.');
+            // First-time setup: create directory structure and shared files
+            if (!$wasEnabled) {
+                try {
+                    $this->_deployer->initialize();
+                    $this->_status->addMessage('info', 'Settings saved. Directory structure created — ready to deploy.');
+                } catch (\Throwable $e) {
+                    $this->_status->addMessage('warning', 'Settings saved, but setup failed: ' . $e->getMessage());
+                }
+            } else {
+                $this->_status->addMessage('info', 'Settings saved.');
+            }
 
             if ($this->getRequest()->isXmlHttpRequest()) {
                 $url = Modules_XveLaravelKit_Url::action('domain/index', ['domain_id' => $this->_domain->getId()]);
