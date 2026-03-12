@@ -28,16 +28,7 @@
         </div>
 
         <div style="display: flex; gap: 8px; align-items: center;">
-            <button type="submit" name="action" value="save" class="btn btn-primary">Save</button>
+            <button type="submit" class="btn btn-primary">Save</button>
         </div>
     </form>
-
-    <?php if (!empty($this->teamsWebhookUrl)): ?>
-    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #ddd;">
-        <form method="post" action="<?php echo Modules_XveLaravelKit_Url::action('index/settings'); ?>" style="display: inline;">
-            <input type="hidden" name="action" value="test">
-            <button type="submit" class="btn">Send Test Notification</button>
-        </form>
-    </div>
-    <?php endif; ?>
 </div>
