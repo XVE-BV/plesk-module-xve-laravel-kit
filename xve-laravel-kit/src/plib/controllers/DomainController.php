@@ -184,6 +184,8 @@ class DomainController extends pm_Controller_Action
         $this->view->webhookUrl = $scheme . '://' . $host
             . '/modules/xve-laravel-kit/public/webhook.php?secret=' . $secret;
 
+        $this->view->hasComposerAuth = $this->_deployer->hasComposerAuth();
+
         $form = new Modules_XveLaravelKit_Form_Settings($this->_domain, $this->_settings);
 
         if ($this->getRequest()->isPost() && $form->isValid($this->getRequest()->getPost())) {
@@ -228,6 +230,60 @@ class DomainController extends pm_Controller_Action
         }
 
         $this->view->form = $form;
+    }
+
+    // ─── Composer Auth ──────────────────────────────────────────
+
+    public function composerAuthAction()
+    {
+        $this->_helper->layout->disableLayout();
+        $this->_helper->viewRenderer->setNoRender();
+
+        if (!$this->getRequest()->isPost()) {
+            $this->_redirect('domain/settings', ['domain_id' => $this->_domain->getId()]);
+            return;
+        }
+
+        $action = $this->getRequest()->getParam('auth_action');
+
+        switch ($action) {
+            case 'upload':
+                $contents = $this->getRequest()->getParam('auth_json_contents');
+                if (empty($contents)) {
+                    $this->_status->addMessage('error', 'No auth.json content provided.');
+                    break;
+                }
+                try {
+                    $this->_deployer->saveComposerAuth($contents);
+                    $this->_status->addMessage('info', 'Composer auth.json saved. It will be linked into each new deployment automatically.');
+                } catch (\Throwable $e) {
+                    $this->_status->addMessage('error', 'Failed to save auth.json: ' . $e->getMessage());
+                }
+                break;
+
+            case 'download':
+                $contents = $this->_deployer->getComposerAuthContents();
+                if (empty($contents)) {
+                    $this->_status->addMessage('error', 'No auth.json found.');
+                    break;
+                }
+                $this->getResponse()
+                    ->setHeader('Content-Type', 'application/json')
+                    ->setHeader('Content-Disposition', 'attachment; filename="auth.json"')
+                    ->setBody($contents);
+                return;
+
+            case 'delete':
+                try {
+                    $this->_deployer->deleteComposerAuth();
+                    $this->_status->addMessage('info', 'Composer auth.json removed.');
+                } catch (\Throwable $e) {
+                    $this->_status->addMessage('error', 'Failed to remove auth.json: ' . $e->getMessage());
+                }
+                break;
+        }
+
+        $this->_redirect('domain/settings', ['domain_id' => $this->_domain->getId()]);
     }
 
     // ─── Actions (POST-only) ───────────────────────────────────

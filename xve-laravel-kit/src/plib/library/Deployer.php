@@ -412,6 +412,58 @@ class Modules_XveLaravelKit_Deployer
         return '';
     }
 
+    // ─── Composer auth.json ─────────────────────────────────────
+
+    public function getComposerAuthPath()
+    {
+        return $this->_basePath . '/shared/auth.json';
+    }
+
+    public function hasComposerAuth()
+    {
+        try {
+            return $this->_fileManager->fileExists($this->getComposerAuthPath());
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    public function getComposerAuthContents()
+    {
+        $path = $this->getComposerAuthPath();
+        try {
+            if ($this->_fileManager->fileExists($path)) {
+                return $this->_fileManager->fileGetContents($path);
+            }
+        } catch (\Throwable $e) {}
+        return '';
+    }
+
+    public function saveComposerAuth($contents)
+    {
+        $path = $this->getComposerAuthPath();
+
+        // Validate JSON
+        $decoded = json_decode($contents, true);
+        if ($decoded === null && json_last_error() !== JSON_ERROR_NONE) {
+            throw new \RuntimeException('Invalid JSON: ' . json_last_error_msg());
+        }
+
+        $this->_fileManager->filePutContents($path, $contents);
+
+        $user = $this->_getSystemUser();
+        $this->_exec(sprintf('chown %s:psaserv %s', escapeshellarg($user), escapeshellarg($path)));
+        $this->_exec(sprintf('chmod 600 %s', escapeshellarg($path)));
+    }
+
+    public function deleteComposerAuth()
+    {
+        $path = $this->getComposerAuthPath();
+        if ($this->_fileManager->fileExists($path)) {
+            $this->_exec('rm -f ' . escapeshellarg($path));
+        }
+    }
+
     /**
      * Validate .env contents before saving.
      *
@@ -960,6 +1012,14 @@ class Modules_XveLaravelKit_Deployer
                 $this->_exec('rm -f ' . escapeshellarg($target));
                 $this->_exec(sprintf('ln -sfn %s %s', escapeshellarg($shared), escapeshellarg($target)));
             }
+        }
+
+        // Auto-link auth.json for Composer private package authentication (e.g. Backpack)
+        $authJson = $this->_basePath . '/shared/auth.json';
+        if ($this->_fileManager->fileExists($authJson)) {
+            $target = $releasePath . '/auth.json';
+            $this->_exec('rm -f ' . escapeshellarg($target));
+            $this->_exec(sprintf('ln -sfn %s %s', escapeshellarg($authJson), escapeshellarg($target)));
         }
     }
 

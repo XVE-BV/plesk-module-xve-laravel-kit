@@ -4,7 +4,7 @@
     <name>XVE Laravel Kit</name>
     <description>Atomic deployments with rollback, Laravel management tools, .env editor, artisan console, and log viewer. Built for zero-downtime deploys from Git repositories.</description>
     <category>developer</category>
-    <version>1.5.0</version>
+    <version>1.6.0</version>
     <release>1</release>
     <vendor>XVE BV</vendor>
     <url>https://xve.be</url>
