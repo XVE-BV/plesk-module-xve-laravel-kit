@@ -25,6 +25,7 @@ jobs:
         run: bash xve-laravel-kit/build.sh
 
       - name: Create GitHub Release
+        id: release
         uses: softprops/action-gh-release@v2
         with:
           files: xve-laravel-kit/dist/xve-laravel-kit-*.zip
@@ -39,3 +40,40 @@ jobs:
             # From URL
             plesk bin extension --install-url https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/xve-laravel-kit-${{ steps.version.outputs.version }}.zip
             ```
+
+      - name: Notify Teams channel
+        if: env.TEAMS_WEBHOOK_URL != ''
+        env:
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+        run: |
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/xve-laravel-kit-${{ steps.version.outputs.version }}.zip"
+          RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}"
+
+          curl -sf -H "Content-Type: application/json" -d '{
+            "@type": "MessageCard",
+            "@context": "http://schema.org/extensions",
+            "themeColor": "0076D7",
+            "summary": "XVE Laravel Kit ${{ github.ref_name }} released",
+            "sections": [{
+              "activityTitle": "XVE Laravel Kit ${{ github.ref_name }}",
+              "activitySubtitle": "New release published",
+              "facts": [
+                { "name": "Tag", "value": "${{ github.ref_name }}" },
+                { "name": "Version", "value": "${{ steps.version.outputs.version }}" },
+                { "name": "Install URL", "value": "'"${DOWNLOAD_URL}"'" }
+              ],
+              "markdown": true
+            }],
+            "potentialAction": [
+              {
+                "@type": "OpenUri",
+                "name": "View Release",
+                "targets": [{ "os": "default", "uri": "'"${RELEASE_URL}"'" }]
+              },
+              {
+                "@type": "OpenUri",
+                "name": "Download ZIP",
+                "targets": [{ "os": "default", "uri": "'"${DOWNLOAD_URL}"'" }]
+              }
+            ]
+          }' "$TEAMS_WEBHOOK_URL"

@@ -10,6 +10,60 @@ class IndexController extends pm_Controller_Action
         $this->view->pageTitle = 'XVE Laravel Kit';
     }
 
+    public function settingsAction()
+    {
+        if ($this->getRequest()->isPost()) {
+            $webhookUrl = trim($this->getRequest()->getParam('teams_webhook_url', ''));
+            Modules_XveLaravelKit_TeamsNotifier::setWebhookUrl($webhookUrl);
+            $this->_status->addMessage('info', 'Settings saved.');
+
+            $url = Modules_XveLaravelKit_Url::action('index/settings');
+            $this->getResponse()->setRedirect($url, 302)->sendResponse();
+            exit;
+        }
+
+        $this->view->teamsWebhookUrl = Modules_XveLaravelKit_TeamsNotifier::getWebhookUrl();
+    }
+
+    public function testTeamsAction()
+    {
+        $this->_helper->layout->disableLayout();
+        $this->_helper->viewRenderer->setNoRender();
+
+        if (!$this->getRequest()->isPost()) {
+            $this->getResponse()
+                ->setHttpResponseCode(405)
+                ->setHeader('Content-Type', 'application/json')
+                ->setBody(json_encode(['error' => 'POST required']));
+            return;
+        }
+
+        $url = Modules_XveLaravelKit_TeamsNotifier::getWebhookUrl();
+        if (empty($url)) {
+            $this->getResponse()
+                ->setHeader('Content-Type', 'application/json')
+                ->setBody(json_encode(['success' => false, 'error' => 'No webhook URL configured. Save settings first.']));
+            return;
+        }
+
+        try {
+            Modules_XveLaravelKit_TeamsNotifier::notifyDeploy(
+                'test.example.com',
+                date('Ymd_His'),
+                'success',
+                'main',
+                ['hash' => 'abc1234', 'message' => 'Test notification from XVE Laravel Kit', 'author' => 'XVE Laravel Kit']
+            );
+            $this->getResponse()
+                ->setHeader('Content-Type', 'application/json')
+                ->setBody(json_encode(['success' => true]));
+        } catch (\Throwable $e) {
+            $this->getResponse()
+                ->setHeader('Content-Type', 'application/json')
+                ->setBody(json_encode(['success' => false, 'error' => $e->getMessage()]));
+        }
+    }
+
     public function guideAction()
     {
         // Static page — no data needed

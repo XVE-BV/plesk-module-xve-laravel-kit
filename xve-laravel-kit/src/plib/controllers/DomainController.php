@@ -199,6 +199,7 @@ class DomainController extends pm_Controller_Action
             foreach (array_keys(Modules_XveLaravelKit_DeploySettings::STEPS) as $step) {
                 $this->_settings->setStepEnabled($step, (bool) $form->getValue('step_' . $step));
             }
+            $this->_settings->setTeamsNotifyEnabled((bool) $form->getValue('teams_notify'));
             $this->_settings->setKeepReleases((int) $form->getValue('keep_releases'));
             $this->_settings->setHealthCheckUrl($form->getValue('health_check_url'));
             $this->_settings->setHealthCheckTimeout((int) $form->getValue('health_check_timeout'));

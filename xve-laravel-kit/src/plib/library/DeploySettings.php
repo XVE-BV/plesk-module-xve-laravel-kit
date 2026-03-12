@@ -162,6 +162,18 @@ class Modules_XveLaravelKit_DeploySettings
         return null;
     }
 
+    // -- Teams notification --
+
+    public function isTeamsNotifyEnabled()
+    {
+        return (bool) pm_Settings::get($this->_prefix . 'teams_notify', false);
+    }
+
+    public function setTeamsNotifyEnabled($value)
+    {
+        pm_Settings::set($this->_prefix . 'teams_notify', $value ? '1' : '0');
+    }
+
     // -- Deploy mode --
 
     const DEPLOY_MODES = ['normal', 'quiet'];
@@ -392,7 +404,7 @@ class Modules_XveLaravelKit_DeploySettings
             'health_check_url', 'health_check_timeout',
             'pre_deploy_script', 'post_deploy_script',
             'current_release', 'last_deploy_time', 'last_deploy_status',
-            'webhook_secret', 'shared_dirs', 'shared_files', 'node_pm', 'node_version', 'deploy_mode',
+            'webhook_secret', 'shared_dirs', 'shared_files', 'node_pm', 'node_version', 'deploy_mode', 'teams_notify',
         ];
         foreach ($keys as $key) {
             pm_Settings::set($this->_prefix . $key, null);

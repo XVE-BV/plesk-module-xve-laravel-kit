@@ -105,6 +105,13 @@ class Modules_XveLaravelKit_Form_Settings extends pm_Form_Simple
             }
         }
 
+        $this->addElement('checkbox', 'teams_notify', [
+            'label' => 'Notify Teams channel on deploy',
+            'value' => $this->_settings->isTeamsNotifyEnabled() ? '1' : '0',
+            'checked' => $this->_settings->isTeamsNotifyEnabled(),
+            'description' => 'Send deploy status (success/failure) to the Teams webhook configured in the extension settings',
+        ]);
+
         $this->addElement('text', 'keep_releases', [
             'label' => 'Keep Releases',
             'value' => $this->_settings->getKeepReleases(),
