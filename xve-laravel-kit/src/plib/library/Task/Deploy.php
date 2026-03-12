@@ -99,6 +99,9 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
             $this->setParam('result', 'success');
             $this->setParam('release', $release);
 
+            // Send Teams notification on success
+            $this->_notifyTeams($settings, $domain->getDisplayName(), $release, 'success', $commitInfo);
+
         } catch (\Throwable $e) {
             $this->_stepStatus[$this->_currentStep] = 'error';
             $this->_saveStepStatus();
@@ -131,6 +134,10 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
             $this->setParam('result', 'error');
             $this->setParam('release', $release);
             $this->setParam('error', $e->getMessage());
+
+            // Send Teams notification on failure
+            $this->_notifyTeams($settings, $domain->getDisplayName(), $release, 'failed', $commitInfo, $e->getMessage());
+
             throw $e;
         }
     }
@@ -210,48 +217,32 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
     {
         $this->_clearBanner();
         pm_Log::info('XVE Deploy task completed: ' . $this->getParam('release', ''));
-        $this->_sendTeamsNotification('success');
     }
 
     public function onError(\Exception $e)
     {
         $this->_clearBanner();
         pm_Log::err('XVE Deploy task failed: ' . $e->getMessage());
-        $this->_sendTeamsNotification('failed', $e->getMessage());
     }
 
-    private function _sendTeamsNotification(string $status, string $error = ''): void
-    {
+    private function _notifyTeams(
+        Modules_XveLaravelKit_DeploySettings $settings,
+        string $domainName,
+        string $release,
+        string $status,
+        $commitInfo = null,
+        string $error = ''
+    ): void {
         try {
-            $domainId = $this->getParam('domainId');
-            $domain = pm_Domain::getByDomainId($domainId);
-            $settings = new Modules_XveLaravelKit_DeploySettings($domain);
-
             if (!$settings->isTeamsNotifyEnabled()) {
                 return;
             }
 
-            $release = $this->getParam('release', '');
-            $branch = $settings->getBranch();
-
-            // Try to get commit info from the deploy history
-            $commitInfo = null;
-            try {
-                $deployer = new Modules_XveLaravelKit_Deployer($domain, $settings);
-                $history = $deployer->getHistory();
-                if (!empty($history)) {
-                    $latest = $history[0];
-                    if (!empty($latest['commit'])) {
-                        $commitInfo = $latest['commit'];
-                    }
-                }
-            } catch (\Throwable $e) {}
-
             Modules_XveLaravelKit_TeamsNotifier::notifyDeploy(
-                $domain->getDisplayName(),
+                $domainName,
                 $release,
                 $status,
-                $branch,
+                $settings->getBranch(),
                 $commitInfo,
                 $error
             );
