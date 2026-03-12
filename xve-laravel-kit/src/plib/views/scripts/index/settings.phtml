@@ -28,48 +28,16 @@
         </div>
 
         <div style="display: flex; gap: 8px; align-items: center;">
-            <button type="submit" class="btn btn-primary">Save</button>
-
-            <button type="button" class="btn" id="xlk-test-teams"
-                    onclick="xlkTestTeams()"
-                    <?php echo empty($this->teamsWebhookUrl) ? 'disabled style="opacity: 0.6;"' : ''; ?>>
-                Send Test Notification
-            </button>
-            <span id="xlk-test-result" style="font-size: 13px;"></span>
+            <button type="submit" name="action" value="save" class="btn btn-primary">Save</button>
         </div>
     </form>
+
+    <?php if (!empty($this->teamsWebhookUrl)): ?>
+    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #ddd;">
+        <form method="post" action="<?php echo Modules_XveLaravelKit_Url::action('index/settings'); ?>" style="display: inline;">
+            <input type="hidden" name="action" value="test">
+            <button type="submit" class="btn">Send Test Notification</button>
+        </form>
+    </div>
+    <?php endif; ?>
 </div>
-
-<script>
-function xlkTestTeams() {
-    var btn = document.getElementById('xlk-test-teams');
-    var result = document.getElementById('xlk-test-result');
-    btn.disabled = true;
-    btn.style.opacity = '0.6';
-    result.textContent = 'Sending...';
-    result.style.color = '#666';
-
-    fetch(<?php echo json_encode(Modules_XveLaravelKit_Url::action('index/test-teams')); ?>, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'}
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-        if (data.success) {
-            result.textContent = 'Sent! Check your Teams channel.';
-            result.style.color = '#2e7d32';
-        } else {
-            result.textContent = 'Failed: ' + (data.error || 'Unknown error');
-            result.style.color = '#e74c3c';
-        }
-    })
-    .catch(function(err) {
-        result.textContent = 'Error: ' + err.message;
-        result.style.color = '#e74c3c';
-    })
-    .finally(function() {
-        btn.disabled = false;
-        btn.style.opacity = '1';
-    });
-}
-</script>
