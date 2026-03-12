@@ -79,22 +79,23 @@ class Modules_XveLaravelKit_TeamsNotifier
     {
         $json = json_encode($payload);
 
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => $json,
-            CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 10,
-            CURLOPT_CONNECTTIMEOUT => 5,
-        ]);
+        pm_Log::info('Teams webhook: sending to ' . substr($url, 0, 60) . '...');
 
-        $result = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        // Use shell curl via callSbin — guaranteed to work from Plesk task context
+        // (PHP curl in sw-engine may lack CA certs or curl extension)
+        $cmd = sprintf(
+            'curl -sf -m 10 -H %s -d %s %s 2>&1',
+            escapeshellarg('Content-Type: application/json'),
+            escapeshellarg($json),
+            escapeshellarg($url)
+        );
 
-        if ($httpCode !== 200) {
-            pm_Log::warning('Teams webhook failed (HTTP ' . $httpCode . '): ' . $result);
+        try {
+            $result = pm_ApiCli::callSbin('xve-exec.sh', [$cmd]);
+            $output = isset($result['stdout']) ? trim($result['stdout']) : '';
+            pm_Log::info('Teams webhook: sent OK — ' . $output);
+        } catch (\Throwable $e) {
+            pm_Log::warning('Teams webhook failed: ' . $e->getMessage());
         }
     }
 }

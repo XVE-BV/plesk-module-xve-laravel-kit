@@ -234,10 +234,14 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
         string $error = ''
     ): void {
         try {
+            pm_Log::info('Teams notify: checking for domain ' . $domainName . ' (status: ' . $status . ')');
+
             if (!$settings->isTeamsNotifyEnabled()) {
+                pm_Log::info('Teams notify: disabled for this domain, skipping');
                 return;
             }
 
+            pm_Log::info('Teams notify: enabled, sending...');
             Modules_XveLaravelKit_TeamsNotifier::notifyDeploy(
                 $domainName,
                 $release,
