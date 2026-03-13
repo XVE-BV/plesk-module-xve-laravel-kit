@@ -106,7 +106,11 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
             $this->_stepStatus[$this->_currentStep] = 'error';
             $this->_saveStepStatus();
 
-            $deployer->addHistory($release, 'deploy', 'failed', $commitInfo);
+            $deployer->addHistory($release, 'deploy', 'failed', $commitInfo, [
+                'message' => $e->getMessage(),
+                'step' => $this->_currentStep,
+                'stepStatus' => $this->_stepStatus,
+            ]);
             $settings->setLastDeployTime(date('Y-m-d H:i:s'));
             $settings->setLastDeployStatus('failed');
 

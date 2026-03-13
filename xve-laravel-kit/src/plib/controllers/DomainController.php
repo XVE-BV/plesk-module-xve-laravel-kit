@@ -307,8 +307,10 @@ class DomainController extends pm_Controller_Action
         $taskManager = new pm_LongTask_Manager();
         $taskManager->start($task, $this->_domain);
 
-        $this->_status->addMessage('info', 'Deployment started. You can track progress in the task bar.');
-        $this->_redirect('domain/releases', ['domain_id' => $this->_domain->getId()]);
+        // Store task ID so the progress page can poll it
+        pm_Settings::set('xlk_deploy_task_' . $this->_domain->getId(), $task->getId());
+
+        $this->_redirect('domain/deploy-progress', ['domain_id' => $this->_domain->getId()]);
     }
 
     public function rollbackAction()
@@ -432,29 +434,70 @@ class DomainController extends pm_Controller_Action
         }
     }
 
+    public function deployProgressAction()
+    {
+        $this->view->domain = $this->_domain;
+    }
+
     public function deployStatusAction()
     {
         $this->_helper->layout->disableLayout();
         $this->_helper->viewRenderer->setNoRender();
 
-        // Use the deploy banner setting as a lightweight indicator
-        $deploying = pm_Settings::get('xlk_deploying', '');
-        $isRunning = false;
+        $taskId = pm_Settings::get('xlk_deploy_task_' . $this->_domain->getId(), '');
+        $result = ['deploying' => false, 'steps' => [], 'status' => 'unknown'];
 
-        if (!empty($deploying)) {
-            $info = json_decode($deploying, true);
-            // Check if the deploy is for this domain
-            if ($info && isset($info['domain'])
-                && $info['domain'] === $this->_domain->getDisplayName()) {
-                $isRunning = true;
+        if (!empty($taskId)) {
+            try {
+                $taskManager = new pm_LongTask_Manager();
+                $task = $taskManager->getTaskById($taskId);
+
+                if ($task) {
+                    $taskStatus = $task->getStatus();
+                    $isRunning = ($taskStatus === pm_LongTask_Task::STATUS_RUNNING
+                                  || $taskStatus === pm_LongTask_Task::STATUS_NOT_STARTED);
+
+                    $result['deploying'] = $isRunning;
+                    $result['status'] = $isRunning ? 'running' : ($taskStatus === pm_LongTask_Task::STATUS_DONE ? 'done' : 'error');
+                    $result['progress'] = $task->getProgress();
+
+                    // Get step details
+                    if (method_exists($task, 'getSteps')) {
+                        $result['steps'] = $task->getSteps();
+                    }
+
+                    // On error, include the error message
+                    if ($result['status'] === 'error') {
+                        $result['error'] = $task->getParam('error', 'Unknown error');
+                        $result['release'] = $task->getParam('release', '');
+                    }
+
+                    // On success, include release
+                    if ($result['status'] === 'done') {
+                        $result['release'] = $task->getParam('release', '');
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Task may have been cleaned up
+                $result['deploying'] = false;
+                $result['status'] = 'unknown';
+            }
+        } else {
+            // Fallback: check the banner
+            $deploying = pm_Settings::get('xlk_deploying', '');
+            if (!empty($deploying)) {
+                $info = json_decode($deploying, true);
+                if ($info && isset($info['domain'])
+                    && $info['domain'] === $this->_domain->getDisplayName()) {
+                    $result['deploying'] = true;
+                    $result['status'] = 'running';
+                }
             }
         }
 
         $this->getResponse()
             ->setHeader('Content-Type', 'application/json')
-            ->setBody(json_encode([
-                'deploying' => $isRunning,
-            ]));
+            ->setBody(json_encode($result));
     }
 
     public function checkAction()
@@ -467,6 +510,25 @@ class DomainController extends pm_Controller_Action
     public function guideAction()
     {
         $this->view->domain = $this->_domain;
+    }
+
+    public function deployErrorAction()
+    {
+        $release = $this->getRequest()->getParam('release');
+        $this->view->domain = $this->_domain;
+        $this->view->release = $release;
+        $this->view->repoWebUrl = $this->_settings->getRepoWebUrl();
+
+        // Find the history entry for this release
+        $history = $this->_deployer->getHistory();
+        $entry = null;
+        foreach ($history as $h) {
+            if ($h['release'] === $release && $h['status'] === 'failed') {
+                $entry = $h;
+                break;
+            }
+        }
+        $this->view->entry = $entry;
     }
 
     public function historyAction()

@@ -1,0 +1,102 @@
+<?php echo $this->renderTabs($this->tabs); ?>
+
+<h2>Deployment Error Details</h2>
+
+<div style="margin-bottom: 20px; display: flex; gap: 8px;">
+    <a href="<?php echo Modules_XveLaravelKit_Url::action('domain/releases', ['domain_id' => $this->domain->getId()]); ?>"
+       class="btn">&larr; Back to Releases</a>
+    <a href="<?php echo Modules_XveLaravelKit_Url::action('domain/history', ['domain_id' => $this->domain->getId()]); ?>"
+       class="btn">History</a>
+</div>
+
+<?php if (!$this->entry): ?>
+    <p>No error details found for release <code><?php echo $this->escape($this->release); ?></code>.</p>
+<?php else: ?>
+    <?php
+        $error = isset($this->entry['error']) ? $this->entry['error'] : null;
+        $commit = isset($this->entry['commit']) ? $this->entry['commit'] : null;
+        $stepStatus = ($error && isset($error['stepStatus'])) ? $error['stepStatus'] : [];
+        $failedStep = ($error && isset($error['step'])) ? $error['step'] : null;
+        $errorMessage = ($error && isset($error['message'])) ? $error['message'] : 'Unknown error';
+        $steps = Modules_XveLaravelKit_Task_Deploy::STEPS;
+    ?>
+
+    <!-- Summary -->
+    <table class="table" style="width: 100%; margin-bottom: 20px;">
+        <tr>
+            <td style="width: 140px; font-weight: bold;">Release</td>
+            <td><code><?php echo $this->escape($this->entry['release']); ?></code></td>
+        </tr>
+        <tr>
+            <td style="font-weight: bold;">Timestamp</td>
+            <td><?php echo $this->escape($this->entry['timestamp']); ?></td>
+        </tr>
+        <tr>
+            <td style="font-weight: bold;">User</td>
+            <td><?php echo $this->escape($this->entry['user'] ?? '—'); ?></td>
+        </tr>
+        <?php if ($commit): ?>
+        <tr>
+            <td style="font-weight: bold;">Commit</td>
+            <td>
+                <?php if ($this->repoWebUrl): ?>
+                    <a href="<?php echo $this->escape($this->repoWebUrl . '/commit/' . $commit['hash']); ?>" target="_blank"><code><?php echo $this->escape(substr($commit['hash'], 0, 7)); ?></code></a>
+                <?php else: ?>
+                    <code><?php echo $this->escape(substr($commit['hash'], 0, 7)); ?></code>
+                <?php endif; ?>
+                <span style="color: #666; font-size: 12px;"><?php echo $this->escape($commit['branch']); ?></span>
+                &mdash; <?php echo $this->escape($commit['message']); ?>
+            </td>
+        </tr>
+        <?php endif; ?>
+        <?php if ($failedStep): ?>
+        <tr>
+            <td style="font-weight: bold;">Failed Step</td>
+            <td style="color: #c62828;"><?php echo $this->escape($steps[$failedStep] ?? $failedStep); ?></td>
+        </tr>
+        <?php endif; ?>
+    </table>
+
+    <!-- Error Message -->
+    <h3 style="color: #c62828;">Error Message</h3>
+    <pre style="background: #ffebee; border: 1px solid #ef9a9a; border-radius: 4px; padding: 12px 16px; white-space: pre-wrap; word-break: break-word; font-size: 13px; color: #b71c1c; max-height: 400px; overflow-y: auto;"><?php echo $this->escape($errorMessage); ?></pre>
+
+    <!-- Step Progress -->
+    <?php if (!empty($stepStatus)): ?>
+    <h3 style="margin-top: 24px;">Deployment Steps</h3>
+    <table class="table" style="width: 100%;">
+        <thead>
+            <tr>
+                <th style="text-align: left; width: 30px;">#</th>
+                <th style="text-align: left;">Step</th>
+                <th style="text-align: left; width: 120px;">Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php $i = 1; foreach ($steps as $key => $label):
+                $status = isset($stepStatus[$key]) ? $stepStatus[$key] : 'pending';
+                $icon = '&#x23F3;'; // pending
+                $color = '#999';
+                $bg = '';
+                if ($status === 'done') {
+                    $icon = '&#x2705;';
+                    $color = '#2e7d32';
+                } elseif ($status === 'error') {
+                    $icon = '&#x274C;';
+                    $color = '#c62828';
+                    $bg = '#ffebee';
+                } elseif ($status === 'running') {
+                    $icon = '&#x25B6;';
+                    $color = '#1565c0';
+                }
+            ?>
+                <tr<?php echo $bg ? ' style="background: ' . $bg . ';"' : ''; ?>>
+                    <td style="color: #999;"><?php echo $i++; ?></td>
+                    <td><?php echo $this->escape($label); ?></td>
+                    <td style="color: <?php echo $color; ?>;"><?php echo $icon; ?> <?php echo ucfirst($this->escape($status)); ?></td>
+                </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+    <?php endif; ?>
+<?php endif; ?>

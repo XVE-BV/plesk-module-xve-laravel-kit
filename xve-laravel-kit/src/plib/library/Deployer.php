@@ -1235,7 +1235,7 @@ class Modules_XveLaravelKit_Deployer
         }
     }
 
-    private function _addHistory($release, $action, $status, $commit = null)
+    private function _addHistory($release, $action, $status, $commit = null, $errorDetails = null)
     {
         $historyFile = $this->_basePath . '/' . self::HISTORY_FILE;
         $history = [];
@@ -1258,6 +1258,10 @@ class Modules_XveLaravelKit_Deployer
 
         if ($commit) {
             $entry['commit'] = $commit;
+        }
+
+        if ($errorDetails) {
+            $entry['error'] = $errorDetails;
         }
 
         $history[] = $entry;
@@ -1455,7 +1459,7 @@ class Modules_XveLaravelKit_Deployer
     public function ensureArtisanSymlink() { $this->_ensureArtisanSymlink(); }
     public function ensureStorageLink($releasePath) { $this->_ensureStorageLink($releasePath); }
     public function fixOwnership() { $this->_fixOwnership(); }
-    public function addHistory($release, $action, $status, $commit = null) { $this->_addHistory($release, $action, $status, $commit); }
+    public function addHistory($release, $action, $status, $commit = null, $errorDetails = null) { $this->_addHistory($release, $action, $status, $commit, $errorDetails); }
 
     public function runPreDeployScript($releasePath)
     {
