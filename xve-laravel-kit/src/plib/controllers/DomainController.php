@@ -450,8 +450,7 @@ class DomainController extends pm_Controller_Action
         if (!empty($taskId)) {
             try {
                 $taskManager = new pm_LongTask_Manager();
-                $tasks = $taskManager->getTasks([$taskId]);
-                $task = !empty($tasks) ? reset($tasks) : null;
+                $task = $taskManager->getTaskById($taskId);
 
                 if ($task) {
                     $taskStatus = $task->getStatus();
@@ -461,18 +460,25 @@ class DomainController extends pm_Controller_Action
                     $result['deploying'] = $isRunning;
                     $result['status'] = $isRunning ? 'running' : ($taskStatus === pm_LongTask_Task::STATUS_DONE ? 'done' : 'error');
                     $result['progress'] = $task->getProgress();
-                    $result['steps'] = $task->getSteps();
 
+                    // Get step details
+                    if (method_exists($task, 'getSteps')) {
+                        $result['steps'] = $task->getSteps();
+                    }
+
+                    // On error, include the error message
                     if ($result['status'] === 'error') {
                         $result['error'] = $task->getParam('error', 'Unknown error');
                         $result['release'] = $task->getParam('release', '');
                     }
 
+                    // On success, include release
                     if ($result['status'] === 'done') {
                         $result['release'] = $task->getParam('release', '');
                     }
                 }
             } catch (\Throwable $e) {
+                // Task may have been cleaned up
                 $result['deploying'] = false;
                 $result['status'] = 'unknown';
             }
