@@ -41,13 +41,7 @@
                         <?php endif; ?>
                     </td>
                     <td><?php echo $this->escape($entry['action']); ?></td>
-                    <td>
-                        <?php echo $entry['status'] === 'success' ? '&#x2705;' : '&#x274C;'; ?> <?php echo $this->escape($entry['status']); ?>
-                        <?php if ($entry['status'] === 'failed'): ?>
-                            <a href="<?php echo Modules_XveLaravelKit_Url::action('domain/deploy-error', ['domain_id' => $this->domain->getId(), 'release' => $entry['release']]); ?>"
-                               style="font-size: 11px; margin-left: 4px;">View Error</a>
-                        <?php endif; ?>
-                    </td>
+                    <td><?php echo $entry['status'] === 'success' ? '&#x2705;' : '&#x274C;'; ?> <?php echo $this->escape($entry['status']); ?></td>
                     <td><?php echo $this->escape($entry['user'] ?? '—'); ?></td>
                 </tr>
             <?php endforeach; ?>

@@ -83,12 +83,7 @@
                     </td>
                     <td><?php echo $label; ?></td>
                     <td>
-                        <?php if ($release['status'] === 'failed'): ?>
-                            <a href="<?php echo Modules_XveLaravelKit_Url::action('domain/deploy-error', ['domain_id' => $this->domain->getId(), 'release' => $release['name']]); ?>"
-                               class="btn btn-danger" style="font-size: 12px;">
-                                View Error
-                            </a>
-                        <?php elseif (!$release['current']): ?>
+                        <?php if (!$release['current'] && $release['status'] !== 'failed'): ?>
                             <form method="post" style="display: inline;"
                                   action="<?php echo Modules_XveLaravelKit_Url::action('domain/rollback', ['domain_id' => $this->domain->getId()]); ?>">
                                 <input type="hidden" name="release" value="<?php echo $this->escape($release['name']); ?>" />
@@ -204,17 +199,26 @@
     // Preload branches
     loadBranches();
 
-    // ─── Redirect to progress page if deploy is running ───
+    // ─── Auto-refresh when deploy finishes ───
     var statusUrl = <?php echo json_encode(Modules_XveLaravelKit_Url::action('domain/deploy-status', ['domain_id' => $this->domain->getId()])); ?>;
-    var progressUrl = <?php echo json_encode(Modules_XveLaravelKit_Url::action('domain/deploy-progress', ['domain_id' => $this->domain->getId()])); ?>;
+    var pollTimer = null;
+    var wasDeploying = false;
 
-    fetch(statusUrl)
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            if (data.deploying) {
-                window.location.href = progressUrl;
-            }
-        })
-        .catch(function() {});
+    function pollDeployStatus() {
+        fetch(statusUrl)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.deploying) {
+                    wasDeploying = true;
+                } else if (wasDeploying) {
+                    clearInterval(pollTimer);
+                    window.location.reload();
+                }
+            })
+            .catch(function() {});
+    }
+
+    pollTimer = setInterval(pollDeployStatus, 3000);
+    pollDeployStatus();
 })();
 </script>
