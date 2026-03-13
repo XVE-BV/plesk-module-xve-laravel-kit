@@ -20,21 +20,13 @@
         </tbody>
     </table>
 
-    <!-- Error panel (hidden initially) -->
-    <div id="error-panel" style="display: none; margin-top: 24px;">
-        <h3 style="color: #c62828;">Deployment Failed</h3>
-        <pre id="error-message" style="background: #ffebee; border: 1px solid #ef9a9a; border-radius: 4px; padding: 12px 16px; white-space: pre-wrap; word-break: break-word; font-size: 13px; color: #b71c1c; max-height: 400px; overflow-y: auto;"></pre>
-        <div style="margin-top: 12px;">
-            <a id="error-detail-link" href="#" class="btn">View Full Error Details</a>
-        </div>
-    </div>
-
     <!-- Success panel (hidden initially) -->
     <div id="success-panel" style="display: none; margin-top: 24px;">
         <div style="background: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 4px; padding: 16px; text-align: center;">
             <span style="font-size: 24px;">&#x2705;</span>
             <p style="margin: 8px 0 0; font-size: 15px; color: #2e7d32; font-weight: bold;">Deployment successful!</p>
             <p style="margin: 4px 0 0; color: #666;">Release: <code id="success-release"></code></p>
+            <p style="margin: 4px 0 0; color: #999; font-size: 12px;">Redirecting to releases...</p>
         </div>
     </div>
 
@@ -48,17 +40,12 @@
 (function() {
     var statusUrl = <?php echo json_encode(Modules_XveLaravelKit_Url::action('domain/deploy-status', ['domain_id' => $this->domain->getId()])); ?>;
     var releasesUrl = <?php echo json_encode(Modules_XveLaravelKit_Url::action('domain/releases', ['domain_id' => $this->domain->getId()])); ?>;
-    var errorBaseUrl = <?php echo json_encode(Modules_XveLaravelKit_Url::action('domain/deploy-error', ['domain_id' => $this->domain->getId(), 'release' => '__RELEASE__'])); ?>;
-    var domainId = <?php echo json_encode($this->domain->getId()); ?>;
+    var errorUrl = <?php echo json_encode(Modules_XveLaravelKit_Url::action('domain/deploy-error', ['domain_id' => $this->domain->getId(), 'release' => '__RELEASE__'])); ?>;
 
     var progressBar = document.getElementById('progress-bar');
     var stepsBody = document.getElementById('steps-body');
-    var errorPanel = document.getElementById('error-panel');
-    var errorMessage = document.getElementById('error-message');
-    var errorDetailLink = document.getElementById('error-detail-link');
     var successPanel = document.getElementById('success-panel');
     var successRelease = document.getElementById('success-release');
-    var progressBarWrap = document.getElementById('progress-bar-wrap');
     var pollTimer = null;
     var finished = false;
 
@@ -102,12 +89,10 @@
         fetch(statusUrl)
             .then(function(r) { return r.json(); })
             .then(function(data) {
-                // Update steps
                 if (data.steps) {
                     renderSteps(data.steps);
                 }
 
-                // Update progress bar
                 var pct = data.progress || 0;
                 progressBar.style.width = pct + '%';
                 progressBar.textContent = pct + '%';
@@ -122,7 +107,6 @@
                     if (data.release) {
                         successRelease.textContent = data.release;
                     }
-                    // Auto-redirect to releases after 3 seconds
                     setTimeout(function() {
                         window.location.href = releasesUrl;
                     }, 3000);
@@ -131,10 +115,11 @@
                     finished = true;
                     clearInterval(pollTimer);
                     progressBar.style.background = '#e53935';
-                    errorPanel.style.display = 'block';
-                    errorMessage.textContent = data.error || 'Unknown error';
+                    // Redirect straight to the error detail page
                     if (data.release) {
-                        errorDetailLink.href = errorBaseUrl.replace('__RELEASE__', encodeURIComponent(data.release));
+                        window.location.href = errorUrl.replace('__RELEASE__', encodeURIComponent(data.release));
+                    } else {
+                        window.location.href = releasesUrl;
                     }
                 }
             })
