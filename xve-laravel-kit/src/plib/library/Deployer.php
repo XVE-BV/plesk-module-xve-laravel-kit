@@ -144,13 +144,9 @@ class Modules_XveLaravelKit_Deployer
         $this->_exec('rm -f ' . escapeshellarg($this->_basePath . '/artisan'));
         $this->_exec('rm -f ' . escapeshellarg($this->_basePath . '/' . self::HISTORY_FILE));
 
-        // Restore original httpdocs if backed up, otherwise ensure it exists
+        // Ensure httpdocs exists so Plesk has a valid document root
         $httpdocs = $this->_basePath . '/httpdocs';
-        $originalBackup = $this->_basePath . '/releases/_original';
-        if ($this->_dirExists($originalBackup)) {
-            $this->_exec('rm -rf ' . escapeshellarg($httpdocs));
-            $this->_exec(sprintf('mv %s %s', escapeshellarg($originalBackup), escapeshellarg($httpdocs)));
-        } elseif (!$this->_dirExists($httpdocs)) {
+        if (!$this->_dirExists($httpdocs)) {
             $this->_exec('mkdir -p ' . escapeshellarg($httpdocs));
             $user = $this->_getSystemUser();
             $this->_exec(sprintf('chown %s:%s %s',
@@ -263,7 +259,7 @@ class Modules_XveLaravelKit_Deployer
         $releases = [];
 
         foreach (array_filter(explode("\n", trim($output))) as $name) {
-            if ($name === '_original' || !preg_match('/^\d{8}_\d{6}$/', $name)) {
+            if (!preg_match('/^\d{8}_\d{6}$/', $name)) {
                 continue;
             }
 
@@ -1038,15 +1034,6 @@ class Modules_XveLaravelKit_Deployer
     {
         $currentLink = $this->_basePath . '/current';
         $tempLink = $this->_basePath . '/current_tmp_' . getmypid();
-
-        // Backup original httpdocs on first deploy (for teardown restore)
-        $httpdocs = $this->_basePath . '/httpdocs';
-        if (!is_link($httpdocs) && $this->_dirExists($httpdocs)) {
-            $backupPath = $this->_basePath . '/releases/_original';
-            if (!$this->_dirExists($backupPath)) {
-                $this->_exec(sprintf('cp -a %s %s', escapeshellarg($httpdocs), escapeshellarg($backupPath)));
-            }
-        }
 
         // If 'current' is a real directory (e.g. created by Plesk when setting www-root),
         // remove it first — mv can't atomically replace a directory with a symlink
