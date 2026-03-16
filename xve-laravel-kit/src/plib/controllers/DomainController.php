@@ -206,8 +206,8 @@ class DomainController extends pm_Controller_Action
             $this->_settings->setHealthCheckTimeout((int) $form->getValue('health_check_timeout'));
             $this->_settings->setPreDeployScript($form->getValue('pre_deploy_script'));
             $this->_settings->setPostDeployScript($form->getValue('post_deploy_script'));
-            $setWwwRoot = (bool) $form->getValue('set_www_root');
             $wasEnabled = $this->_settings->isEnabled();
+            $setWwwRoot = !$wasEnabled ? (bool) $form->getValue('set_www_root') : false;
             $this->_settings->setEnabled(true);
             $this->_settings->save();
 
@@ -224,17 +224,7 @@ class DomainController extends pm_Controller_Action
                     $this->_status->addMessage('warning', 'Settings saved, but setup failed: ' . $e->getMessage());
                 }
             } else {
-                // If www-root checkbox was toggled on for an existing setup, apply it now
-                if ($setWwwRoot && !$this->_settings->isWwwRootSet()) {
-                    try {
-                        $this->_deployer->setWwwRoot();
-                        $this->_status->addMessage('info', 'Settings saved. Document root set to current/public.');
-                    } catch (\Throwable $e) {
-                        $this->_status->addMessage('warning', 'Settings saved, but failed to set document root: ' . $e->getMessage());
-                    }
-                } else {
-                    $this->_status->addMessage('info', 'Settings saved.');
-                }
+                $this->_status->addMessage('info', 'Settings saved.');
             }
 
             if ($this->getRequest()->isXmlHttpRequest()) {

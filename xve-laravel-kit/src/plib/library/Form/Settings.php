@@ -156,12 +156,14 @@ class Modules_XveLaravelKit_Form_Settings extends pm_Form_Simple
             'description' => 'Additional bash commands to run after switching (after built-in steps)',
         ]);
 
-        $this->addElement('checkbox', 'set_www_root', [
-            'label' => 'Set document root to current/public',
-            'value' => $this->_settings->isWwwRootSet() ? '1' : '0',
-            'checked' => !$this->_settings->isEnabled() ? true : $this->_settings->isWwwRootSet(),
-            'description' => 'Point the Plesk document root to current/public for zero-downtime deployments. Uncheck to keep the existing document root and set it later.',
-        ]);
+        if (!$this->_settings->isEnabled()) {
+            $this->addElement('checkbox', 'set_www_root', [
+                'label' => 'Set document root to current/public',
+                'value' => '1',
+                'checked' => true,
+                'description' => 'Point the Plesk document root to current/public for zero-downtime deployments. Uncheck to keep the existing document root and set it later.',
+            ]);
+        }
 
         $this->addControlButtons([
             'sendTitle' => 'Save Settings',
