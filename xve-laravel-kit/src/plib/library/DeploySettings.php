@@ -397,6 +397,18 @@ class Modules_XveLaravelKit_DeploySettings
         // pm_Settings persists immediately on each set() call
     }
 
+    // -- WWW-Root --
+
+    public function isWwwRootSet()
+    {
+        return (bool) pm_Settings::get($this->_prefix . 'www_root_set', false);
+    }
+
+    public function setWwwRootSet($value)
+    {
+        pm_Settings::set($this->_prefix . 'www_root_set', $value ? '1' : '0');
+    }
+
     public function delete()
     {
         $keys = [
@@ -405,6 +417,7 @@ class Modules_XveLaravelKit_DeploySettings
             'pre_deploy_script', 'post_deploy_script',
             'current_release', 'last_deploy_time', 'last_deploy_status',
             'webhook_secret', 'shared_dirs', 'shared_files', 'node_pm', 'node_version', 'deploy_mode', 'teams_notify',
+            'www_root_set',
         ];
         foreach ($keys as $key) {
             pm_Settings::set($this->_prefix . $key, null);

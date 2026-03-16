@@ -11,7 +11,7 @@
         <li>Generate an SSH deploy key for your repository</li>
         <li>Seed <code>.env</code> from your repo's <code>.env.example</code> (if available)</li>
         <li>Set correct file permissions and ownership</li>
-        <li>Point the document root to <code>current/public</code></li>
+        <li>Point the document root to <code>current/public</code> (if checked below)</li>
     </ul>
     <p style="margin-bottom: 0; margin-top: 12px; font-size: 13px;">
         New to this? Read the <a href="<?php echo Modules_XveLaravelKit_Url::action('index/guide'); ?>"><strong>step-by-step guide</strong></a> for a full walkthrough.
@@ -51,6 +51,22 @@
 <?php endif; ?>
 
 <?php echo $this->form; ?>
+
+<?php if (!$this->isFirstSetup && !$this->wwwRootSet): ?>
+<div style="margin-top: 20px; margin-bottom: 20px; padding: 15px; background: #fff3e0; border: 1px solid #ffb74d; border-radius: 4px;">
+    <h3 style="margin-top: 0; color: #e65100;">Document Root Not Set</h3>
+    <p style="margin-bottom: 12px; font-size: 13px;">
+        The Plesk document root is not pointed to <code>current/public</code> yet.
+        Your site won't serve from the deployment structure until you set this.
+    </p>
+    <form method="post" action="<?php echo Modules_XveLaravelKit_Url::action('domain/set-www-root', ['domain_id' => $this->domain->getId()]); ?>">
+        <button type="submit" class="btn btn-primary"
+                onclick="return confirm('Set document root to current/public? The site will serve from the deployment structure.');">
+            Set Document Root to current/public
+        </button>
+    </form>
+</div>
+<?php endif; ?>
 
 <?php if (!$this->isFirstSetup): ?>
 <div style="margin-top: 30px; margin-bottom: 20px; padding: 15px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 4px;">

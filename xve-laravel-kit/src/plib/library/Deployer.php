@@ -33,7 +33,7 @@ class Modules_XveLaravelKit_Deployer
      * Set up the directory structure and shared files for a new domain.
      * Safe to call multiple times — skips anything that already exists.
      */
-    public function initialize()
+    public function initialize($setWwwRoot = true)
     {
         $this->_ensureStructure();
 
@@ -104,12 +104,23 @@ class Modules_XveLaravelKit_Deployer
         $this->_exec(sprintf('find %s -type f -exec chmod 664 {} +', escapeshellarg($sharedPath)));
 
         // Set Plesk document root to current/public (current is a symlink to the active release)
+        if ($setWwwRoot) {
+            $this->setWwwRoot();
+        }
+
+        $this->_fixOwnership();
+    }
+
+    /**
+     * Set the Plesk document root to current/public.
+     */
+    public function setWwwRoot()
+    {
         $domainName = $this->_domain->getDisplayName();
         $this->_exec(sprintf('plesk bin site --update %s -www-root current/public',
             escapeshellarg($domainName)
         ));
-
-        $this->_fixOwnership();
+        $this->_settings->setWwwRootSet(true);
     }
 
     // ─── Teardown (remove everything) ─────────────────────────

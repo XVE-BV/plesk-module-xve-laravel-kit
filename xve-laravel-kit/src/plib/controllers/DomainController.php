@@ -185,6 +185,7 @@ class DomainController extends pm_Controller_Action
             . '/modules/xve-laravel-kit/public/webhook.php?secret=' . $secret;
 
         $this->view->hasComposerAuth = $this->_deployer->hasComposerAuth();
+        $this->view->wwwRootSet = $this->_settings->isWwwRootSet();
 
         $form = new Modules_XveLaravelKit_Form_Settings($this->_domain, $this->_settings);
 
@@ -205,6 +206,7 @@ class DomainController extends pm_Controller_Action
             $this->_settings->setHealthCheckTimeout((int) $form->getValue('health_check_timeout'));
             $this->_settings->setPreDeployScript($form->getValue('pre_deploy_script'));
             $this->_settings->setPostDeployScript($form->getValue('post_deploy_script'));
+            $setWwwRoot = (bool) $form->getValue('set_www_root');
             $wasEnabled = $this->_settings->isEnabled();
             $this->_settings->setEnabled(true);
             $this->_settings->save();
@@ -212,13 +214,27 @@ class DomainController extends pm_Controller_Action
             // First-time setup: create directory structure and shared files
             if (!$wasEnabled) {
                 try {
-                    $this->_deployer->initialize();
-                    $this->_status->addMessage('info', 'Settings saved. Directory structure created — ready to deploy.');
+                    $this->_deployer->initialize($setWwwRoot);
+                    $msg = 'Settings saved. Directory structure created — ready to deploy.';
+                    if (!$setWwwRoot) {
+                        $msg .= ' Document root was not changed — you can set it later from the Settings tab.';
+                    }
+                    $this->_status->addMessage('info', $msg);
                 } catch (\Throwable $e) {
                     $this->_status->addMessage('warning', 'Settings saved, but setup failed: ' . $e->getMessage());
                 }
             } else {
-                $this->_status->addMessage('info', 'Settings saved.');
+                // If www-root checkbox was toggled on for an existing setup, apply it now
+                if ($setWwwRoot && !$this->_settings->isWwwRootSet()) {
+                    try {
+                        $this->_deployer->setWwwRoot();
+                        $this->_status->addMessage('info', 'Settings saved. Document root set to current/public.');
+                    } catch (\Throwable $e) {
+                        $this->_status->addMessage('warning', 'Settings saved, but failed to set document root: ' . $e->getMessage());
+                    }
+                } else {
+                    $this->_status->addMessage('info', 'Settings saved.');
+                }
             }
 
             if ($this->getRequest()->isXmlHttpRequest()) {
@@ -393,6 +409,23 @@ class DomainController extends pm_Controller_Action
         $url = Modules_XveLaravelKit_Url::action('index/index');
         $this->getResponse()->setRedirect($url, 302)->sendResponse();
         exit;
+    }
+
+    public function setWwwRootAction()
+    {
+        if (!$this->getRequest()->isPost()) {
+            $this->_redirect('domain/settings', ['domain_id' => $this->_domain->getId()]);
+            return;
+        }
+
+        try {
+            $this->_deployer->setWwwRoot();
+            $this->_status->addMessage('info', 'Document root set to current/public.');
+        } catch (\Throwable $e) {
+            $this->_status->addMessage('error', 'Failed to set document root: ' . $e->getMessage());
+        }
+
+        $this->_redirect('domain/settings', ['domain_id' => $this->_domain->getId()]);
     }
 
     public function maintenanceAction()
