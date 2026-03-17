@@ -267,6 +267,45 @@ class Modules_XveLaravelKit_DeploySettings
     const DEFAULT_SHARED_DIRS = "storage\nlogs";
     const DEFAULT_SHARED_FILES = ".env";
 
+    /**
+     * Validate a single shared path entry.
+     *
+     * A valid shared path must be a non-empty relative path that:
+     * - is not empty or whitespace-only
+     * - is not "." or ".."
+     * - contains no null bytes
+     * - does not start with "/"  (no absolute paths)
+     * - contains no ".." segments (no directory traversal)
+     * - contains no "." segments (no current-dir components)
+     */
+    public static function validateSharedPath($path)
+    {
+        if (!is_string($path) || trim($path) === '') {
+            return false;
+        }
+        // Reject null bytes before trimming — trim() itself strips chr(0)
+        // which would allow a null-byte-prefixed path to slip through.
+        if (strpos($path, "\0") !== false) {
+            return false;
+        }
+        $path = trim($path);
+        // Reject absolute paths
+        if ($path[0] === '/') {
+            return false;
+        }
+        // Reject lone dot or double-dot
+        if ($path === '.' || $path === '..') {
+            return false;
+        }
+        // Reject any .. or . segment in the path
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '..' || $segment === '.') {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public function getSharedDirs()
     {
         $raw = pm_Settings::get($this->_prefix . 'shared_dirs', self::DEFAULT_SHARED_DIRS);
