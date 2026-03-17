@@ -22,12 +22,67 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
     private $_currentStep = 'prepare';
     private $_stepStatus = [];
 
+    const LOCK_KEY_SUFFIX  = 'deploy_lock';
+    const LOCK_TTL_SECONDS = 1800; // 30 minutes — stale-lock protection
+
+    /**
+     * Returns the pm_Settings key used for the deploy lock of a given domain.
+     */
+    public static function lockKey(int $domainId): string
+    {
+        return 'xlk_' . $domainId . '_' . self::LOCK_KEY_SUFFIX;
+    }
+
+    /**
+     * Returns true when a non-stale deploy lock exists for the domain.
+     */
+    public static function isLocked(int $domainId): bool
+    {
+        $raw = pm_Settings::get(self::lockKey($domainId), '');
+        if (empty($raw)) {
+            return false;
+        }
+        $data = json_decode($raw, true);
+        if (!is_array($data) || empty($data['started'])) {
+            return false;
+        }
+        return (time() - (int) $data['started']) < self::LOCK_TTL_SECONDS;
+    }
+
+    /**
+     * Acquires the deploy lock for the domain.
+     */
+    private function _acquireLock(int $domainId): void
+    {
+        pm_Settings::set(self::lockKey($domainId), json_encode([
+            'started' => time(),
+        ]));
+    }
+
+    /**
+     * Releases the deploy lock for the domain.
+     */
+    private function _releaseLock(int $domainId): void
+    {
+        pm_Settings::set(self::lockKey($domainId), '');
+    }
+
     public function run()
     {
         $domainId = $this->getParam('domainId');
         $domain = pm_Domain::getByDomainId($domainId);
         $settings = new Modules_XveLaravelKit_DeploySettings($domain);
         $deployer = new Modules_XveLaravelKit_Deployer($domain, $settings);
+
+        // Concurrency guard — prevent two deploys running at the same time for this domain
+        if (self::isLocked($domainId)) {
+            pm_Log::info('XVE Deploy skipped: another deploy is already running for ' . $domain->getDisplayName());
+            $this->setParam('result', 'skipped');
+            $this->setParam('error', 'A deploy is already in progress for this domain. Please wait for it to finish.');
+            throw new \RuntimeException('A deploy is already in progress for this domain.');
+        }
+
+        $this->_acquireLock($domainId);
 
         // Always show banner to notify other logged-in users
         $this->_setBanner($domain->getDisplayName());
@@ -44,6 +99,7 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
         $this->_saveStepStatus();
 
         try {
+            // Deploy steps
             $this->_runStep('prepare', 10, function () use ($deployer) {
                 $deployer->ensureStructure();
             });
@@ -115,7 +171,10 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
                     $prevPath = $basePath . '/releases/' . $previousRelease;
                     $deployer->switchRelease($prevPath);
                 } catch (\Throwable $rollbackError) {
-                    // Rollback failed too
+                    // Log rollback failure so it is visible in Plesk logs and the UI
+                    pm_Log::err('XVE Deploy rollback failed for ' . $domain->getDisplayName() . ': ' . $rollbackError->getMessage());
+                    $this->setParam('rollbackError', $rollbackError->getMessage());
+                    $this->_notifyTeams($settings, $domain->getDisplayName(), $release, 'rollback_failed', $commitInfo, $rollbackError->getMessage());
                 }
             }
 
@@ -139,6 +198,9 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
             $this->_notifyTeams($settings, $domain->getDisplayName(), $release, 'failed', $commitInfo, $e->getMessage());
 
             throw $e;
+        } finally {
+            // Always release the deploy lock so subsequent deploys are not blocked
+            $this->_releaseLock($domainId);
         }
     }
 
