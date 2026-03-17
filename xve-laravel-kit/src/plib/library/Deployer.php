@@ -14,6 +14,18 @@ class Modules_XveLaravelKit_Deployer
     const HISTORY_FILE = '.deploy-history.json';
     const SBIN_SCRIPT = 'xve-exec.sh';
 
+    /**
+     * Regex that a sanitized artisan command (after stripping "php artisan") must match.
+     * Allows: letters, digits, colon, hyphen, underscore, dot, equals, forward-slash,
+     * spaces, and single/double quotes — the minimal set for valid artisan invocations.
+     */
+    const ARTISAN_COMMAND_PATTERN = '/^[a-zA-Z0-9:_\-\s="\'.,]+$/';
+
+    /**
+     * Commands that are blocked and must be run manually via SSH.
+     */
+    const ARTISAN_BLOCKED_COMMANDS = ['migrate:fresh', 'migrate:reset', 'db:wipe', 'db:seed', 'key:generate'];
+
     private $_domain;
     private $_settings;
     private $_fileManager;
@@ -690,14 +702,13 @@ class Modules_XveLaravelKit_Deployer
         $command = preg_replace('/^\s*(php\s+)?artisan\s+/', '', $command);
 
         // Allowlist: only permit characters that are safe in artisan commands
-        if (!preg_match('/^[a-zA-Z0-9:_\-\s="\'.,]+$/', $command)) {
+        if (!preg_match(self::ARTISAN_COMMAND_PATTERN, $command)) {
             return ['success' => false, 'output' => 'Command contains invalid characters. Only alphanumeric characters, colons, hyphens, underscores, equals signs, spaces, quotes, dots, and commas are allowed.'];
         }
 
         // Block dangerous commands (secondary safety net)
-        $blocked = ['migrate:fresh', 'migrate:reset', 'db:wipe', 'db:seed', 'key:generate'];
         $cmdBase = explode(' ', trim($command))[0];
-        if (in_array($cmdBase, $blocked)) {
+        if (in_array($cmdBase, self::ARTISAN_BLOCKED_COMMANDS, true)) {
             return ['success' => false, 'output' => "Command '$cmdBase' is blocked for safety. Run it manually via SSH if needed."];
         }
 
