@@ -21,50 +21,52 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
 
     private $_currentStep = 'prepare';
     private $_stepStatus = [];
-
-    const LOCK_KEY_SUFFIX  = 'deploy_lock';
-    const LOCK_TTL_SECONDS = 1800; // 30 minutes — stale-lock protection
+    private $_lockFp = null;
 
     /**
-     * Returns the pm_Settings key used for the deploy lock of a given domain.
-     */
-    public static function lockKey(int $domainId): string
-    {
-        return 'xlk_' . $domainId . '_' . self::LOCK_KEY_SUFFIX;
-    }
-
-    /**
-     * Returns true when a non-stale deploy lock exists for the domain.
+     * Fast pre-check for webhooks/controllers (cannot hold file locks across requests).
      */
     public static function isLocked(int $domainId): bool
     {
-        $raw = pm_Settings::get(self::lockKey($domainId), '');
-        if (empty($raw)) {
-            return false;
-        }
-        $data = json_decode($raw, true);
-        if (!is_array($data) || empty($data['started'])) {
-            return false;
-        }
-        return (time() - (int) $data['started']) < self::LOCK_TTL_SECONDS;
+        return (bool) pm_Settings::get('xlk_deploy_lock_' . $domainId);
     }
 
     /**
-     * Acquires the deploy lock for the domain.
+     * Atomically acquire the deploy lock using flock().
+     * Also sets a pm_Settings flag so isLocked() reflects the state for other processes.
      */
-    private function _acquireLock(int $domainId): void
+    private function _tryAcquireLock(int $domainId): bool
     {
-        pm_Settings::set(self::lockKey($domainId), json_encode([
-            'started' => time(),
-        ]));
+        $lockFile = '/tmp/xlk-deploy-' . $domainId . '.lock';
+        $fp = fopen($lockFile, 'c');
+
+        if ($fp === false) {
+            return false;
+        }
+
+        if (!flock($fp, LOCK_EX | LOCK_NB)) {
+            fclose($fp);
+            return false;
+        }
+
+        $this->_lockFp = $fp;
+        pm_Settings::set('xlk_deploy_lock_' . $domainId, '1');
+
+        return true;
     }
 
     /**
-     * Releases the deploy lock for the domain.
+     * Release the deploy lock (flock + pm_Settings flag).
      */
     private function _releaseLock(int $domainId): void
     {
-        pm_Settings::set(self::lockKey($domainId), '');
+        if ($this->_lockFp !== null) {
+            flock($this->_lockFp, LOCK_UN);
+            fclose($this->_lockFp);
+            $this->_lockFp = null;
+        }
+
+        pm_Settings::set('xlk_deploy_lock_' . $domainId, '');
     }
 
     public function run()
@@ -74,16 +76,14 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
         $settings = new Modules_XveLaravelKit_DeploySettings($domain);
         $deployer = new Modules_XveLaravelKit_Deployer($domain, $settings);
 
-        // Concurrency guard — prevent two deploys running at the same time for this domain
+        // Concurrency guard — atomic flock prevents TOCTOU race
         $lockAcquired = false;
-        if (self::isLocked($domainId)) {
+        if (!$this->_tryAcquireLock($domainId)) {
             pm_Log::info('XVE Deploy skipped: another deploy is already running for ' . $domain->getDisplayName());
             $this->setParam('result', 'skipped');
             $this->setParam('error', 'A deploy is already in progress for this domain. Please wait for it to finish.');
             throw new \RuntimeException('A deploy is already in progress for this domain.');
         }
-
-        $this->_acquireLock($domainId);
         $lockAcquired = true;
 
         // Always show banner to notify other logged-in users
