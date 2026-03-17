@@ -175,21 +175,7 @@ class Modules_XveLaravelKit_Deployer
             }
         }
 
-        if ($this->_dirExists($releasesPath)) {
-            $releasesArchive = $this->_basePath . '/releases-teardown-' . $timestamp . '.tar.gz';
-            try {
-                $this->_exec(sprintf(
-                    'tar -czf %s -C %s releases',
-                    escapeshellarg($releasesArchive),
-                    escapeshellarg($this->_basePath)
-                ));
-                \pm_Log::info('Teardown: releases/ backed up to ' . $releasesArchive);
-            } catch (\Throwable $e) {
-                \pm_Log::info('Teardown: could not archive releases/ — ' . $e->getMessage());
-            }
-        }
-
-        // Remove releases and shared
+        // Remove releases and shared (releases are re-deployable from git, so no backup needed)
         $this->_exec('rm -rf ' . escapeshellarg($this->_basePath . '/releases'));
         $this->_exec('rm -rf ' . escapeshellarg($this->_basePath . '/shared'));
     }
@@ -345,7 +331,7 @@ class Modules_XveLaravelKit_Deployer
             // Only remove releases explicitly marked as 'failed' in the deploy history.
             // Successful and rollback releases are kept so that _cleanup() / keepReleases
             // can prune them in a controlled way — preserving rollback capability.
-            if (!$release['current'] && $release['status'] === 'failed') {
+            if (!$release['current'] && in_array($release['status'], ['failed', 'unknown'], true)) {
                 $path = $this->_basePath . '/releases/' . $release['name'];
                 $this->_exec('rm -rf ' . escapeshellarg($path));
                 $removed++;
@@ -620,13 +606,10 @@ class Modules_XveLaravelKit_Deployer
         // Keep only the 10 most recent .env backups; delete older ones
         try {
             $sharedDir = $this->_basePath . '/shared';
-            $output = trim($this->_exec(sprintf(
-                'find %s -maxdepth 1 -name ".env.backup.*" -type f 2>/dev/null | sort || true',
-                escapeshellarg($sharedDir)
-            )));
-            if ($output !== '') {
-                $backups = array_values(array_filter(explode("\n", $output)));
-                $excess = array_slice($backups, 0, max(0, count($backups) - 10));
+            $backups = glob($sharedDir . '/.env.backup.*');
+            if (is_array($backups) && count($backups) > 10) {
+                sort($backups);
+                $excess = array_slice($backups, 0, count($backups) - 10);
                 foreach ($excess as $old) {
                     $this->_exec('rm -f ' . escapeshellarg($old));
                 }
@@ -707,8 +690,8 @@ class Modules_XveLaravelKit_Deployer
         $command = preg_replace('/^\s*(php\s+)?artisan\s+/', '', $command);
 
         // Allowlist: only permit characters that are safe in artisan commands
-        if (!preg_match('/^[a-zA-Z0-9:_\-\s="\'.,\/]+$/', $command)) {
-            return ['success' => false, 'output' => 'Command contains invalid characters. Only alphanumeric characters, colons, hyphens, underscores, equals signs, spaces, quotes, dots, commas, and forward slashes are allowed.'];
+        if (!preg_match('/^[a-zA-Z0-9:_\-\s="\'.,]+$/', $command)) {
+            return ['success' => false, 'output' => 'Command contains invalid characters. Only alphanumeric characters, colons, hyphens, underscores, equals signs, spaces, quotes, dots, and commas are allowed.'];
         }
 
         // Block dangerous commands (secondary safety net)
@@ -725,7 +708,7 @@ class Modules_XveLaravelKit_Deployer
             $fullCmd = sprintf(
                 'su -s /bin/bash %s -c %s 2>&1',
                 escapeshellarg($this->_getSystemUser()),
-                escapeshellarg($pathExport . 'cd ' . escapeshellarg($currentPath) . ' && php artisan ' . escapeshellarg($command))
+                escapeshellarg($pathExport . 'cd ' . escapeshellarg($currentPath) . ' && php artisan ' . $command)
             );
             $output = $this->_exec($fullCmd);
             return ['success' => true, 'output' => $output];

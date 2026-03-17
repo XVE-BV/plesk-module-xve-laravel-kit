@@ -308,7 +308,7 @@ class Modules_XveLaravelKit_DeploySettings
             return false;
         }
         foreach (explode('/', $path) as $segment) {
-            if ($segment === '..') {
+            if ($segment === '..' || $segment === '.') {
                 return false;
             }
         }
@@ -443,7 +443,7 @@ class Modules_XveLaravelKit_DeploySettings
             'pre_deploy_script', 'post_deploy_script',
             'current_release', 'last_deploy_time', 'last_deploy_status',
             'webhook_secret', 'shared_dirs', 'shared_files', 'node_pm', 'node_version', 'deploy_mode', 'teams_notify',
-            'www_root_set',
+            'www_root_set', 'deploy_lock',
         ];
         foreach ($keys as $key) {
             pm_Settings::set($this->_prefix . $key, null);

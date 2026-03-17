@@ -75,6 +75,7 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
         $deployer = new Modules_XveLaravelKit_Deployer($domain, $settings);
 
         // Concurrency guard — prevent two deploys running at the same time for this domain
+        $lockAcquired = false;
         if (self::isLocked($domainId)) {
             pm_Log::info('XVE Deploy skipped: another deploy is already running for ' . $domain->getDisplayName());
             $this->setParam('result', 'skipped');
@@ -83,6 +84,7 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
         }
 
         $this->_acquireLock($domainId);
+        $lockAcquired = true;
 
         // Always show banner to notify other logged-in users
         $this->_setBanner($domain->getDisplayName());
@@ -199,8 +201,11 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
 
             throw $e;
         } finally {
-            // Always release the deploy lock so subsequent deploys are not blocked
-            $this->_releaseLock($domainId);
+            // Only release the lock if we actually acquired it — avoid clearing
+            // another deploy's lock when this task was rejected by the guard.
+            if ($lockAcquired) {
+                $this->_releaseLock($domainId);
+            }
         }
     }
 
