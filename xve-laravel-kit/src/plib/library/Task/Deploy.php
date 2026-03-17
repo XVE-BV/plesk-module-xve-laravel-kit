@@ -21,6 +21,43 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
 
     private $_currentStep = 'prepare';
     private $_stepStatus = [];
+    private $_lockFp = null;
+
+    public static function isLocked(int $domainId): bool
+    {
+        return (bool) pm_Settings::get('xlk_deploy_lock_' . $domainId);
+    }
+
+    private function _tryAcquireLock(int $domainId): bool
+    {
+        $lockFile = '/tmp/xlk-deploy-' . $domainId . '.lock';
+        $fp = fopen($lockFile, 'c');
+
+        if ($fp === false) {
+            return false;
+        }
+
+        if (!flock($fp, LOCK_EX | LOCK_NB)) {
+            fclose($fp);
+            return false;
+        }
+
+        $this->_lockFp = $fp;
+        pm_Settings::set('xlk_deploy_lock_' . $domainId, '1');
+
+        return true;
+    }
+
+    private function _releaseLock(int $domainId): void
+    {
+        if ($this->_lockFp !== null) {
+            flock($this->_lockFp, LOCK_UN);
+            fclose($this->_lockFp);
+            $this->_lockFp = null;
+        }
+
+        pm_Settings::set('xlk_deploy_lock_' . $domainId, '');
+    }
 
     public function run()
     {
@@ -28,6 +65,14 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
         $domain = pm_Domain::getByDomainId($domainId);
         $settings = new Modules_XveLaravelKit_DeploySettings($domain);
         $deployer = new Modules_XveLaravelKit_Deployer($domain, $settings);
+
+        if (!$this->_tryAcquireLock($domainId)) {
+            pm_Log::info('XVE Deploy skipped: another deploy is already running for ' . $domain->getDisplayName());
+            $this->setParam('result', 'skipped');
+            $this->setParam('error', 'A deploy is already in progress for this domain.');
+            throw new \RuntimeException('A deploy is already in progress for this domain.');
+        }
+        $lockAcquired = true;
 
         // Always show banner to notify other logged-in users
         $this->_setBanner($domain->getDisplayName());
@@ -139,6 +184,10 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
             $this->_notifyTeams($settings, $domain->getDisplayName(), $release, 'failed', $commitInfo, $e->getMessage());
 
             throw $e;
+        } finally {
+            if ($lockAcquired) {
+                $this->_releaseLock($domainId);
+            }
         }
     }
 
