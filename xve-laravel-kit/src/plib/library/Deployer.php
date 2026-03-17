@@ -252,6 +252,10 @@ class Modules_XveLaravelKit_Deployer
 
     public function rollback($release)
     {
+        if (!preg_match('/^\d{8}_\d{6}$/', $release)) {
+            return ['success' => false, 'error' => 'Invalid release name.'];
+        }
+
         $releasePath = $this->_basePath . '/releases/' . $release;
 
         if (!$this->_dirExists($releasePath)) {

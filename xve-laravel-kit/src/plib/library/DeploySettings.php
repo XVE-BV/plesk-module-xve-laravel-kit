@@ -456,7 +456,7 @@ class Modules_XveLaravelKit_DeploySettings
             'pre_deploy_script', 'post_deploy_script',
             'current_release', 'last_deploy_time', 'last_deploy_status',
             'webhook_secret', 'shared_dirs', 'shared_files', 'node_pm', 'node_version', 'deploy_mode', 'teams_notify',
-            'www_root_set', 'deploy_lock',
+            'www_root_set',
         ];
         foreach ($keys as $key) {
             pm_Settings::set($this->_prefix . $key, null);
@@ -464,5 +464,8 @@ class Modules_XveLaravelKit_DeploySettings
         foreach (array_keys(self::STEPS) as $step) {
             pm_Settings::set($this->_prefix . 'step_' . $step, null);
         }
+        // Clean up the non-prefixed deploy lock and banner used by Task/Deploy
+        pm_Settings::set('xlk_deploy_lock_' . $this->_domain->getId(), null);
+        pm_Settings::set('xlk_deploying', null);
     }
 }
