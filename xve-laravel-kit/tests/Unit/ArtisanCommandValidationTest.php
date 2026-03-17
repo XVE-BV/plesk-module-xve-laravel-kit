@@ -132,6 +132,30 @@ class ArtisanCommandValidationTest extends TestCase
         );
     }
 
+    public function testNewlineWithSafeCharsInjectionFails(): void
+    {
+        $this->assertFalse(
+            $this->isAllowed("migrate\nid"),
+            '"migrate\\nid" must fail (newline injection with safe chars only)'
+        );
+    }
+
+    public function testTabInjectionFails(): void
+    {
+        $this->assertFalse(
+            $this->isAllowed("migrate\tid"),
+            '"migrate\\tid" must fail (tab injection)'
+        );
+    }
+
+    public function testCarriageReturnInjectionFails(): void
+    {
+        $this->assertFalse(
+            $this->isAllowed("migrate\rid"),
+            '"migrate\\rid" must fail (carriage return injection)'
+        );
+    }
+
     public function testHashCommentInjectionFails(): void
     {
         $this->assertFalse(

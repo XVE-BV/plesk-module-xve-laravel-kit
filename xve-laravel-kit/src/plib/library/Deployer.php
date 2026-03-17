@@ -19,7 +19,7 @@ class Modules_XveLaravelKit_Deployer
      * Allows: letters, digits, colon, hyphen, underscore, dot, equals,
      * spaces, commas, and single/double quotes — the minimal set for valid artisan invocations.
      */
-    const ARTISAN_COMMAND_PATTERN = '/^[a-zA-Z0-9:_\-\s="\'.,]+$/';
+    const ARTISAN_COMMAND_PATTERN = '/^[a-zA-Z0-9:_ \-="\'.,]+$/';
 
     /**
      * Commands that are blocked and must be run manually via SSH.

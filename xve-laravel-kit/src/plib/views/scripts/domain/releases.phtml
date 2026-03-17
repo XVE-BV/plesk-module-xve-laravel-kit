@@ -109,6 +109,13 @@
     var deployBtn = document.getElementById('deploy-btn');
     var allBranches = [];
     var defaultBranch = <?php echo json_encode($this->settings->getBranch()); ?>;
+    var wasDeploying = false;
+
+    function escapeHtml(s) {
+        var d = document.createElement('div');
+        d.appendChild(document.createTextNode(s));
+        return d.innerHTML;
+    }
 
     function renderDropdown(filter) {
         var filtered = allBranches;
@@ -121,9 +128,10 @@
         } else {
             dropdown.innerHTML = filtered.map(function(b) {
                 var isDefault = (b === defaultBranch);
-                return '<div class="xlk-branch-option" data-branch="' + b + '" style="padding: 6px 10px; cursor: pointer; font-size: 13px;'
+                var safe = escapeHtml(b);
+                return '<div class="xlk-branch-option" data-branch="' + safe + '" style="padding: 6px 10px; cursor: pointer; font-size: 13px;'
                     + (isDefault ? ' font-weight: bold;' : '') + '">'
-                    + b + (isDefault ? ' <span style="color: #999; font-size: 11px;">(default)</span>' : '')
+                    + safe + (isDefault ? ' <span style="color: #999; font-size: 11px;">(default)</span>' : '')
                     + '</div>';
             }).join('');
         }
@@ -215,7 +223,6 @@
     // ─── Auto-refresh when deploy finishes ───
     var statusUrl = <?php echo json_encode(Modules_XveLaravelKit_Url::action('domain/deploy-status', ['domain_id' => $this->domain->getId()])); ?>;
     var pollTimer = null;
-    var wasDeploying = false;
 
     function pollDeployStatus() {
         fetch(statusUrl)
