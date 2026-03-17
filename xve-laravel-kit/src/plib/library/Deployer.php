@@ -1079,8 +1079,10 @@ class Modules_XveLaravelKit_Deployer
 
         $timeout = $this->_settings->getHealthCheckTimeout();
 
+        $autoHttps = false;
         if (strpos($url, '/') === 0) {
-            $url = 'http://' . $this->_domain->getDisplayName() . $url;
+            $url = 'https://' . $this->_domain->getDisplayName() . $url;
+            $autoHttps = true;
         }
 
         $parsedUrl = parse_url($url);
@@ -1097,6 +1099,17 @@ class Modules_XveLaravelKit_Deployer
 
         $httpCode = trim($this->_exec($cmd));
         $code = (int) $httpCode;
+
+        if (($code < 200 || $code >= 400) && $autoHttps) {
+            $httpUrl = str_replace('https://', 'http://', $url);
+            $cmd = sprintf(
+                'curl -sf --max-time %d -o /dev/null -w "%%{http_code}" %s 2>&1',
+                (int) $timeout,
+                escapeshellarg($httpUrl)
+            );
+            $httpCode = trim($this->_exec($cmd));
+            $code = (int) $httpCode;
+        }
 
         if ($code < 200 || $code >= 400) {
             throw new pm_Exception(
