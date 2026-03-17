@@ -7,7 +7,7 @@
  * Usage:
  *   POST ?secret=<token>
  *   POST with Authorization: Bearer <token>
- *   Optional JSON body: {"branch": "main"}
+ *   Optional JSON body: {"branch": "main", "force": true}
  */
 
 // Bootstrap Plesk SDK and extension autoloading
