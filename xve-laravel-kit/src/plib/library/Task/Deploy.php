@@ -32,6 +32,37 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
     }
 
     /**
+     * Cancel any running deploy task for the given domain and release the lock.
+     * Uses pm_LongTask_Manager::cancel() which kills the process (flock auto-releases on death).
+     *
+     * @return bool true if a running task was found and cancelled
+     */
+    public static function cancelRunning(int $domainId): bool
+    {
+        $taskManager = new pm_LongTask_Manager();
+        $tasks = $taskManager->getTasks([self::UID]);
+        $cancelled = false;
+
+        foreach ($tasks as $task) {
+            if ($task->getParam('domainId') == $domainId
+                && $task->getStatus() === pm_LongTask_Task::STATUS_RUNNING
+            ) {
+                pm_Log::info('XVE Deploy: cancelling running deploy for domain ' . $domainId);
+                $taskManager->cancel($task);
+                $cancelled = true;
+            }
+        }
+
+        // Clear the pm_Settings lock flag (flock is released when the process dies)
+        if ($cancelled) {
+            pm_Settings::set('xlk_deploy_lock_' . $domainId, '');
+            pm_Settings::set('xlk_deploying', '');
+        }
+
+        return $cancelled;
+    }
+
+    /**
      * Atomically acquire the deploy lock using flock().
      * Also sets a pm_Settings flag so isLocked() reflects the state for other processes.
      */

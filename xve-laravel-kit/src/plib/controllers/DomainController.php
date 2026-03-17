@@ -302,11 +302,17 @@ class DomainController extends pm_Controller_Action
             return;
         }
 
-        // Concurrency guard — prevent a second deploy while one is already running
+        // Concurrency guard — cancel running deploy if force flag is set, otherwise reject
+        $force = (bool) $this->getRequest()->getParam('force_deploy', false);
         if (Modules_XveLaravelKit_Task_Deploy::isLocked($this->_domain->getId())) {
-            $this->_status->addMessage('error', 'A deploy is already in progress for this domain. Please wait for it to finish.');
-            $this->_redirect('domain/releases', ['domain_id' => $this->_domain->getId()]);
-            return;
+            if ($force) {
+                Modules_XveLaravelKit_Task_Deploy::cancelRunning($this->_domain->getId());
+                $this->_status->addMessage('info', 'Previous deploy cancelled. Starting new deployment.');
+            } else {
+                $this->_status->addMessage('error', 'A deploy is already in progress for this domain. Please wait for it to finish.');
+                $this->_redirect('domain/releases', ['domain_id' => $this->_domain->getId()]);
+                return;
+            }
         }
 
         $task = new Modules_XveLaravelKit_Task_Deploy();

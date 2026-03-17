@@ -17,6 +17,7 @@
                             z-index: 1000; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
                 </div>
             </div>
+            <input type="hidden" name="force_deploy" id="force-deploy-input" value="0" />
             <button type="submit" class="btn btn-primary" id="deploy-btn">
                 &#x1F680; Deploy Now
             </button>
@@ -184,6 +185,8 @@
         }
     });
 
+    var forceInput = document.getElementById('force-deploy-input');
+
     deployBtn.addEventListener('click', function(e) {
         var branch = input.value.trim();
         if (!branch) {
@@ -191,8 +194,18 @@
             input.focus();
             return;
         }
-        if (!confirm('Deploy from branch: ' + branch + '?')) {
-            e.preventDefault();
+        if (wasDeploying) {
+            if (!confirm('A deploy is already running. Cancel it and start a new deploy from branch: ' + branch + '?')) {
+                e.preventDefault();
+                return;
+            }
+            forceInput.value = '1';
+        } else {
+            if (!confirm('Deploy from branch: ' + branch + '?')) {
+                e.preventDefault();
+                return;
+            }
+            forceInput.value = '0';
         }
     });
 

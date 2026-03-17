@@ -48,23 +48,31 @@ if (!$settings) {
 
 $domain = $settings->getDomain();
 
-// Concurrency guard — reject the webhook if a deploy is already running for this domain
-if (Modules_XveLaravelKit_Task_Deploy::isLocked($domain->getId())) {
-    http_response_code(409);
-    echo json_encode([
-        'error'  => 'A deploy is already in progress for this domain. Please retry later.',
-        'domain' => $domain->getDisplayName(),
-    ]);
-    exit;
-}
-
-// Parse optional branch from request body
+// Parse request body (branch, force)
 $branch = '';
+$force = false;
 $body = file_get_contents('php://input');
 if (!empty($body)) {
     $payload = json_decode($body, true);
     if (isset($payload['branch'])) {
         $branch = trim($payload['branch']);
+    }
+    if (!empty($payload['force'])) {
+        $force = true;
+    }
+}
+
+// Concurrency guard — cancel or reject depending on force flag
+if (Modules_XveLaravelKit_Task_Deploy::isLocked($domain->getId())) {
+    if ($force) {
+        Modules_XveLaravelKit_Task_Deploy::cancelRunning($domain->getId());
+    } else {
+        http_response_code(409);
+        echo json_encode([
+            'error'  => 'A deploy is already in progress for this domain. Pass {"force": true} to cancel it and start a new deploy.',
+            'domain' => $domain->getDisplayName(),
+        ]);
+        exit;
     }
 }
 
