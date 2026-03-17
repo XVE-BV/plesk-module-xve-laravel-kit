@@ -1080,7 +1080,8 @@ class Modules_XveLaravelKit_Deployer
         $timeout = $this->_settings->getHealthCheckTimeout();
 
         if (strpos($url, '/') === 0) {
-            $url = 'http://' . $this->_domain->getDisplayName() . $url;
+            // Default to https:// for relative URLs — production sites typically enforce HTTPS.
+            $url = 'https://' . $this->_domain->getDisplayName() . $url;
         }
 
         $parsedUrl = parse_url($url);
@@ -1090,7 +1091,8 @@ class Modules_XveLaravelKit_Deployer
         }
 
         $cmd = sprintf(
-            'curl -sf --max-time %d -o /dev/null -w "%%{http_code}" %s 2>&1',
+            // -L follows redirects as a safety net (e.g. http -> https redirects).
+            'curl -sfL --max-time %d -o /dev/null -w "%%{http_code}" %s 2>&1',
             (int) $timeout,
             escapeshellarg($url)
         );
@@ -1270,13 +1272,17 @@ class Modules_XveLaravelKit_Deployer
     private function _chownRelease($releasePath)
     {
         $user = $this->_getSystemUser();
+        // Recursively chown the release directory — it's a fresh clone so this is safe and necessary.
         $this->_exec(sprintf('chown -R %s:%s %s',
             escapeshellarg($user),
             escapeshellarg('psaserv'),
             escapeshellarg($releasePath)
         ));
+        // Only chown the shared/ directory itself (non-recursive). The contents are
+        // persistent across deploys and already have correct ownership, so running
+        // chown -R on every deploy is unnecessarily slow on large upload/storage trees.
         $sharedPath = $this->_basePath . '/shared';
-        $this->_exec(sprintf('chown -R %s:%s %s',
+        $this->_exec(sprintf('chown %s:%s %s',
             escapeshellarg($user),
             escapeshellarg('psaserv'),
             escapeshellarg($sharedPath)
