@@ -1154,6 +1154,10 @@ class Modules_XveLaravelKit_Deployer
         $target = $this->_basePath . '/shared/storage/app/public';
         if ($this->_dirExists($target) && !$this->_fileManager->fileExists($publicStorage)) {
             $this->_exec(sprintf('ln -sfn %s %s', escapeshellarg($target), escapeshellarg($publicStorage)));
+            // chown the symlink itself — nginx disable_symlinks if_not_owner
+            // requires the symlink owner to match the target owner
+            $user = $this->_getSystemUser();
+            $this->_exec(sprintf('chown -h %s:psaserv %s', escapeshellarg($user), escapeshellarg($publicStorage)));
         }
     }
 
