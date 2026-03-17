@@ -158,7 +158,6 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
             $this->_runStep('shared', 40, function () use ($deployer, $releasePath) {
                 $deployer->linkShared($releasePath);
                 $deployer->ensureStorageLink($releasePath);
-                $deployer->ensureArtisanSymlink();
                 $deployer->ensureAppKey();
             });
 
@@ -172,6 +171,7 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
 
             $this->_runStep('switch', 70, function () use ($deployer, $releasePath) {
                 $deployer->switchRelease($releasePath);
+                $deployer->ensureArtisanSymlink();
                 $deployer->fixOwnership();
             });
 
