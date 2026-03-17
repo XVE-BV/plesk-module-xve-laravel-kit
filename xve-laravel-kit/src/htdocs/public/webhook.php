@@ -48,6 +48,16 @@ if (!$settings) {
 
 $domain = $settings->getDomain();
 
+// Concurrency guard — reject the webhook if a deploy is already running for this domain
+if (Modules_XveLaravelKit_Task_Deploy::isLocked($domain->getId())) {
+    http_response_code(409);
+    echo json_encode([
+        'error'  => 'A deploy is already in progress for this domain. Please retry later.',
+        'domain' => $domain->getDisplayName(),
+    ]);
+    exit;
+}
+
 // Parse optional branch from request body
 $branch = '';
 $body = file_get_contents('php://input');
