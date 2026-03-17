@@ -16,8 +16,8 @@ class Modules_XveLaravelKit_Deployer
 
     /**
      * Regex that a sanitized artisan command (after stripping "php artisan") must match.
-     * Allows: letters, digits, colon, hyphen, underscore, dot, equals, forward-slash,
-     * spaces, and single/double quotes — the minimal set for valid artisan invocations.
+     * Allows: letters, digits, colon, hyphen, underscore, dot, equals,
+     * spaces, commas, and single/double quotes — the minimal set for valid artisan invocations.
      */
     const ARTISAN_COMMAND_PATTERN = '/^[a-zA-Z0-9:_\-\s="\'.,]+$/';
 
@@ -1186,11 +1186,11 @@ class Modules_XveLaravelKit_Deployer
         $code = (int) $httpCode;
 
         if (($code < 200 || $code >= 400) && $autoHttps) {
-            $httpUrl = str_replace('https://', 'http://', $url);
+            $url = str_replace('https://', 'http://', $url);
             $cmd = sprintf(
-                'curl -sf --max-time %d -o /dev/null -w "%%{http_code}" %s 2>&1',
+                'curl -sfL --max-time %d -o /dev/null -w "%%{http_code}" %s 2>&1',
                 (int) $timeout,
-                escapeshellarg($httpUrl)
+                escapeshellarg($url)
             );
             $httpCode = trim($this->_exec($cmd));
             $code = (int) $httpCode;
@@ -1349,7 +1349,7 @@ class Modules_XveLaravelKit_Deployer
             'action' => $action,
             'status' => $status,
             'timestamp' => date('Y-m-d H:i:s'),
-            'user' => pm_Session::getClient()->getProperty('login'),
+            'user' => $this->_getSessionUser(),
         ];
 
         if ($commit) {
@@ -1441,6 +1441,15 @@ class Modules_XveLaravelKit_Deployer
     private function _getSystemUser()
     {
         return $this->_domain->getSysUserLogin();
+    }
+
+    private function _getSessionUser()
+    {
+        try {
+            return pm_Session::getClient()->getProperty('login');
+        } catch (\Throwable $e) {
+            return 'system';
+        }
     }
 
     private function _getPhpBinDir()
