@@ -845,18 +845,17 @@ class Modules_XveLaravelKit_Deployer
             }
         }
 
-        foreach ($paths as $path) {
-            $this->_exec('mkdir -p ' . escapeshellarg($path));
-        }
-
-        // Chown all created directories to the domain system user
         $user = $this->_getSystemUser();
+
         foreach ($paths as $path) {
-            $this->_exec(sprintf('chown %s:%s %s',
-                escapeshellarg($user),
-                escapeshellarg('psaserv'),
-                escapeshellarg($path)
-            ));
+            if (!$this->_fileManager->fileExists($path)) {
+                $this->_exec('mkdir -p ' . escapeshellarg($path));
+                $this->_exec(sprintf('chown -R %s:%s %s',
+                    escapeshellarg($user),
+                    escapeshellarg('psaserv'),
+                    escapeshellarg($path)
+                ));
+            }
         }
     }
 
@@ -997,12 +996,22 @@ class Modules_XveLaravelKit_Deployer
 
     private function _linkShared($releasePath)
     {
+        $user = $this->_getSystemUser();
+
         foreach ($this->_settings->getSharedDirs() as $dir) {
             $target = $releasePath . '/' . $dir;
             $shared = $this->_basePath . '/shared/' . $dir;
             $parentDir = dirname($target);
             if ($parentDir !== $releasePath) {
                 $this->_exec('mkdir -p ' . escapeshellarg($parentDir));
+            }
+            if (!$this->_fileManager->fileExists($shared)) {
+                $this->_exec('mkdir -p ' . escapeshellarg($shared));
+                $this->_exec(sprintf('chown -R %s:%s %s',
+                    escapeshellarg($user),
+                    escapeshellarg('psaserv'),
+                    escapeshellarg($shared)
+                ));
             }
             $this->_exec('rm -rf ' . escapeshellarg($target));
             $this->_exec(sprintf('ln -sfn %s %s', escapeshellarg($shared), escapeshellarg($target)));
@@ -1011,6 +1020,7 @@ class Modules_XveLaravelKit_Deployer
         foreach ($this->_settings->getSharedFiles() as $file) {
             $target = $releasePath . '/' . $file;
             $shared = $this->_basePath . '/shared/' . $file;
+            $sharedParentDir = dirname($shared);
             if ($this->_fileManager->fileExists($shared)) {
                 $parentDir = dirname($target);
                 if ($parentDir !== $releasePath) {
@@ -1018,6 +1028,13 @@ class Modules_XveLaravelKit_Deployer
                 }
                 $this->_exec('rm -f ' . escapeshellarg($target));
                 $this->_exec(sprintf('ln -sfn %s %s', escapeshellarg($shared), escapeshellarg($target)));
+            } elseif (!$this->_fileManager->fileExists($sharedParentDir)) {
+                $this->_exec('mkdir -p ' . escapeshellarg($sharedParentDir));
+                $this->_exec(sprintf('chown -R %s:%s %s',
+                    escapeshellarg($user),
+                    escapeshellarg('psaserv'),
+                    escapeshellarg($sharedParentDir)
+                ));
             }
         }
 
