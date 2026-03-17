@@ -40,14 +40,24 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
     public static function cancelRunning(int $domainId): bool
     {
         $taskManager = new pm_LongTask_Manager();
-        $tasks = $taskManager->getTasks([self::UID]);
+        // getTasks() expects the auto-generated task ID derived from the class name:
+        // Modules_XveLaravelKit_Task_Deploy → task_deploy
+        // Filter by domain context to avoid scanning all deploy tasks.
+        try {
+            $domain = pm_Domain::getByDomainId($domainId);
+            $tasks = $taskManager->getTasks(['task_deploy'], [$domain]);
+        } catch (\Throwable $e) {
+            $tasks = $taskManager->getTasks(['task_deploy']);
+        }
         $cancelled = false;
 
         foreach ($tasks as $task) {
+            $status = $task->getStatus();
+            // Double-check domainId param in case domain context filtering is imprecise
             if ($task->getParam('domainId') == $domainId
-                && $task->getStatus() === pm_LongTask_Task::STATUS_RUNNING
+                && in_array($status, [pm_LongTask_Task::STATUS_RUNNING, pm_LongTask_Task::STATUS_NOT_STARTED], true)
             ) {
-                pm_Log::info('XVE Deploy: cancelling running deploy for domain ' . $domainId);
+                pm_Log::info('XVE Deploy: cancelling ' . $status . ' deploy for domain ' . $domainId);
                 $taskManager->cancel($task);
                 $cancelled = true;
             }
