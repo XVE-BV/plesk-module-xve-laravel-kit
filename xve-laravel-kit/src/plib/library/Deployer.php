@@ -654,7 +654,12 @@ class Modules_XveLaravelKit_Deployer
         // Sanitize: strip leading "php artisan" if user typed it
         $command = preg_replace('/^\s*(php\s+)?artisan\s+/', '', $command);
 
-        // Block dangerous commands
+        // Allowlist: only permit characters that are safe in artisan commands
+        if (!preg_match('/^[a-zA-Z0-9:_\-\s="\'.,\/]+$/', $command)) {
+            return ['success' => false, 'output' => 'Command contains invalid characters. Only alphanumeric characters, colons, hyphens, underscores, equals signs, spaces, quotes, dots, commas, and forward slashes are allowed.'];
+        }
+
+        // Block dangerous commands (secondary safety net)
         $blocked = ['migrate:fresh', 'migrate:reset', 'db:wipe', 'db:seed', 'key:generate'];
         $cmdBase = explode(' ', trim($command))[0];
         if (in_array($cmdBase, $blocked)) {
@@ -668,7 +673,7 @@ class Modules_XveLaravelKit_Deployer
             $fullCmd = sprintf(
                 'su -s /bin/bash %s -c %s 2>&1',
                 escapeshellarg($this->_getSystemUser()),
-                escapeshellarg($pathExport . 'cd ' . escapeshellarg($currentPath) . ' && php artisan ' . $command)
+                escapeshellarg($pathExport . 'cd ' . escapeshellarg($currentPath) . ' && php artisan ' . escapeshellarg($command))
             );
             $output = $this->_exec($fullCmd);
             return ['success' => true, 'output' => $output];

@@ -270,7 +270,7 @@ class Modules_XveLaravelKit_DeploySettings
     public function getSharedDirs()
     {
         $raw = pm_Settings::get($this->_prefix . 'shared_dirs', self::DEFAULT_SHARED_DIRS);
-        return array_filter(array_map('trim', explode("\n", $raw)));
+        return array_values(array_filter(array_map('trim', explode("\n", $raw)), [$this, '_validateSharedPath']));
     }
 
     public function setSharedDirs($value)
@@ -281,12 +281,38 @@ class Modules_XveLaravelKit_DeploySettings
     public function getSharedFiles()
     {
         $raw = pm_Settings::get($this->_prefix . 'shared_files', self::DEFAULT_SHARED_FILES);
-        return array_filter(array_map('trim', explode("\n", $raw)));
+        return array_values(array_filter(array_map('trim', explode("\n", $raw)), [$this, '_validateSharedPath']));
     }
 
     public function setSharedFiles($value)
     {
         pm_Settings::set($this->_prefix . 'shared_files', $value);
+    }
+
+    /**
+     * Validate a shared directory or file path.
+     * Rejects empty strings, dot-only segments, absolute paths, null bytes, and path traversal.
+     */
+    private function _validateSharedPath($path)
+    {
+        if ($path === '') {
+            return false;
+        }
+        if ($path === '.' || $path === '..') {
+            return false;
+        }
+        if (strpos($path, "\0") !== false) {
+            return false;
+        }
+        if ($path[0] === '/') {
+            return false;
+        }
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '..') {
+                return false;
+            }
+        }
+        return true;
     }
 
     // -- SSH Key management --
