@@ -156,6 +156,39 @@ class Modules_XveLaravelKit_Deployer
             ));
         }
 
+        // Archive shared/ before deletion so .env, uploads, and logs can be recovered
+        $timestamp = date('Ymd_His');
+        $sharedPath = $this->_basePath . '/shared';
+        $releasesPath = $this->_basePath . '/releases';
+
+        if ($this->_dirExists($sharedPath)) {
+            $sharedArchive = $this->_basePath . '/shared-teardown-' . $timestamp . '.tar.gz';
+            try {
+                $this->_exec(sprintf(
+                    'tar -czf %s -C %s shared',
+                    escapeshellarg($sharedArchive),
+                    escapeshellarg($this->_basePath)
+                ));
+                \pm_Log::info('Teardown: shared/ backed up to ' . $sharedArchive);
+            } catch (\Throwable $e) {
+                \pm_Log::info('Teardown: could not archive shared/ — ' . $e->getMessage());
+            }
+        }
+
+        if ($this->_dirExists($releasesPath)) {
+            $releasesArchive = $this->_basePath . '/releases-teardown-' . $timestamp . '.tar.gz';
+            try {
+                $this->_exec(sprintf(
+                    'tar -czf %s -C %s releases',
+                    escapeshellarg($releasesArchive),
+                    escapeshellarg($this->_basePath)
+                ));
+                \pm_Log::info('Teardown: releases/ backed up to ' . $releasesArchive);
+            } catch (\Throwable $e) {
+                \pm_Log::info('Teardown: could not archive releases/ — ' . $e->getMessage());
+            }
+        }
+
         // Remove releases and shared
         $this->_exec('rm -rf ' . escapeshellarg($this->_basePath . '/releases'));
         $this->_exec('rm -rf ' . escapeshellarg($this->_basePath . '/shared'));
@@ -581,6 +614,22 @@ class Modules_XveLaravelKit_Deployer
             if ($this->_fileManager->fileExists($envPath)) {
                 $backup = $this->_basePath . '/shared/.env.backup.' . date('Ymd_His');
                 $this->_exec(sprintf('cp %s %s', escapeshellarg($envPath), escapeshellarg($backup)));
+            }
+        } catch (\Throwable $e) {}
+
+        // Keep only the 10 most recent .env backups; delete older ones
+        try {
+            $sharedDir = $this->_basePath . '/shared';
+            $output = trim($this->_exec(sprintf(
+                'find %s -maxdepth 1 -name ".env.backup.*" -type f 2>/dev/null | sort || true',
+                escapeshellarg($sharedDir)
+            )));
+            if ($output !== '') {
+                $backups = array_values(array_filter(explode("\n", $output)));
+                $excess = array_slice($backups, 0, max(0, count($backups) - 10));
+                foreach ($excess as $old) {
+                    $this->_exec('rm -f ' . escapeshellarg($old));
+                }
             }
         } catch (\Throwable $e) {}
 
