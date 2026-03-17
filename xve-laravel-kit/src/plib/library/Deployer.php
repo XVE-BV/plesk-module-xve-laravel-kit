@@ -309,7 +309,10 @@ class Modules_XveLaravelKit_Deployer
         $releases = $this->getReleases();
         $removed = 0;
         foreach ($releases as $release) {
-            if (!$release['current']) {
+            // Only remove releases explicitly marked as 'failed' in the deploy history.
+            // Successful and rollback releases are kept so that _cleanup() / keepReleases
+            // can prune them in a controlled way — preserving rollback capability.
+            if (!$release['current'] && $release['status'] === 'failed') {
                 $path = $this->_basePath . '/releases/' . $release['name'];
                 $this->_exec('rm -rf ' . escapeshellarg($path));
                 $removed++;
@@ -1041,11 +1044,26 @@ class Modules_XveLaravelKit_Deployer
         $tempLink = $this->_basePath . '/current_tmp_' . getmypid();
 
         // If 'current' is a real directory (e.g. created by Plesk when setting www-root),
-        // remove it first — mv can't atomically replace a directory with a symlink
-        $this->_exec(sprintf(
-            'test -d %1$s && ! test -L %1$s && rm -rf %1$s || true',
-            escapeshellarg($currentLink)
-        ));
+        // move it to a timestamped backup instead of deleting it outright —
+        // mv can't atomically replace a directory with a symlink.
+        if (is_dir($currentLink) && !is_link($currentLink)) {
+            $backupName = 'current-backup-' . date('Ymd_His');
+            $backupPath = $this->_basePath . '/' . $backupName;
+            \pm_Log::warning(
+                "switchRelease: 'current' is a real directory, moving to backup: {$backupPath}"
+            );
+            $this->_exec(sprintf('mv %s %s', escapeshellarg($currentLink), escapeshellarg($backupPath)));
+
+            // Keep only the last 2 current-backup-* directories to avoid unbounded growth
+            $backupList = glob($this->_basePath . '/current-backup-*', GLOB_ONLYDIR);
+            if (is_array($backupList)) {
+                sort($backupList);
+                $toDelete = array_slice($backupList, 0, max(0, count($backupList) - 2));
+                foreach ($toDelete as $old) {
+                    $this->_exec('rm -rf ' . escapeshellarg($old));
+                }
+            }
+        }
 
         // Atomic symlink switch: create temp link, then rename over current
         $this->_exec(sprintf('ln -sfn %s %s', escapeshellarg($releasePath), escapeshellarg($tempLink)));
