@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.0.4
+
+- Fix deploy crash `Call to undefined method pm_Log::warning()`: Plesk's `pm_Log` exposes `warn()`, not `warning()`. Corrects the v2.0.3 PHP-detection log lines and three pre-existing typos (`TeamsNotifier`, `Task/Deploy`, and a Deployer error path)
+
 ## v2.0.3
 
 - Fix deploy running under the wrong PHP version: `_getPhpBinDir()` no longer silently falls back to the newest installed PHP (e.g. 8.5) when the domain's PHP handler can't be parsed
