@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.0.3
+
+- Fix deploy running under the wrong PHP version: `_getPhpBinDir()` no longer silently falls back to the newest installed PHP (e.g. 8.5) when the domain's PHP handler can't be parsed
+- Add a per-domain **PHP Version** deploy setting (auto-detect by default; pin a version to override)
+- Harden PHP handler-id parsing and log the resolved/fallback PHP version for diagnosability
+
 ## v1.5.0
 
 - Fix webhook endpoint: move to `htdocs/public/` for unauthenticated access

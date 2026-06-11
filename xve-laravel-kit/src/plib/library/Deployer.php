@@ -1462,21 +1462,44 @@ class Modules_XveLaravelKit_Deployer
 
     private function _getPhpBinDir()
     {
+        // 1. Explicit per-domain override (Settings -> "PHP Version"). Authoritative.
         try {
-            $phpHandler = $this->_domain->getPhpHandlerId();
-            if (preg_match('/plesk-php(\d)(\d)/', $phpHandler, $m)) {
-                $version = $m[1] . '.' . $m[2];
-                $dir = '/opt/plesk/php/' . $version . '/bin';
-                if ($this->_dirExists($dir)) {
-                    return $dir;
+            $explicit = $this->_settings->getPhpBinDir();
+            if (!empty($explicit)) {
+                if ($this->_dirExists($explicit)) {
+                    return $explicit;
                 }
+                \pm_Log::warning('xve-laravel-kit: configured PHP bin dir ' . $explicit
+                    . ' does not exist; falling back to auto-detection.');
             }
         } catch (\Throwable $e) {}
 
+        // 2. Detect from the domain's Plesk PHP handler (e.g. plesk-php84-fpm -> 8.4).
+        $handler = '';
         try {
-            $result = $this->_exec('ls -d /opt/plesk/php/*/bin 2>/dev/null | sort -V | tail -1');
-            $dir = trim($result);
-            if (!empty($dir)) {
+            $handler = (string) $this->_domain->getPhpHandlerId();
+        } catch (\Throwable $e) {}
+
+        if ($handler !== '' && preg_match('/php-?(\d)\.?(\d)/i', $handler, $m)) {
+            $version = $m[1] . '.' . $m[2];
+            $dir = '/opt/plesk/php/' . $version . '/bin';
+            if ($this->_dirExists($dir)) {
+                return $dir;
+            }
+            \pm_Log::warning('xve-laravel-kit: PHP handler "' . $handler . '" resolved to '
+                . $version . ' but ' . $dir . ' is missing.');
+        } else {
+            \pm_Log::warning('xve-laravel-kit: could not determine PHP version from handler id "'
+                . $handler . '".');
+        }
+
+        // 3. Last resort: newest installed PHP. This can pick a version the app does
+        //    not support (e.g. a freshly installed 8.5), so make it visible in the log.
+        try {
+            $dir = trim($this->_exec('ls -d /opt/plesk/php/*/bin 2>/dev/null | sort -V | tail -1'));
+            if ($dir !== '') {
+                \pm_Log::warning('xve-laravel-kit: falling back to newest installed PHP (' . $dir
+                    . '). Set an explicit PHP version in the deploy settings if this is wrong.');
                 return $dir;
             }
         } catch (\Throwable $e) {}
