@@ -195,6 +195,7 @@ class DomainController extends pm_Controller_Action
             $this->_settings->setSharedDirs($form->getValue('shared_dirs'));
             $this->_settings->setSharedFiles($form->getValue('shared_files'));
             $this->_settings->setDeployMode($form->getValue('deploy_mode'));
+            $this->_settings->setPhpVersion($form->getValue('php_version'));
             $this->_settings->setNodeVersion($form->getValue('node_version'));
             $this->_settings->setNodePackageManager($form->getValue('node_pm'));
             foreach (array_keys(Modules_XveLaravelKit_DeploySettings::STEPS) as $step) {

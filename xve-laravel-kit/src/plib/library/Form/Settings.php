@@ -63,6 +63,18 @@ class Modules_XveLaravelKit_Form_Settings extends pm_Form_Simple
             'description' => 'Controls whether deployment commands (composer, npm, git, artisan) produce output',
         ]);
 
+        $phpVersionOptions = ['auto' => 'Auto-detect from Plesk PHP handler (recommended)'];
+        foreach (Modules_XveLaravelKit_DeploySettings::getAvailablePhpVersions() as $ver => $label) {
+            $phpVersionOptions[$ver] = 'PHP ' . $label;
+        }
+
+        $this->addElement('select', 'php_version', [
+            'label' => 'PHP Version',
+            'value' => $this->_settings->getPhpVersion(),
+            'multiOptions' => $phpVersionOptions,
+            'description' => 'PHP version used for composer and artisan during deploys. "Auto-detect" uses the domain\'s Plesk PHP handler; pin a version if detection picks the wrong one.',
+        ]);
+
         $nodeVersionOptions = ['system' => 'System default'];
         $toolkitVersions = Modules_XveLaravelKit_DeploySettings::getAvailableNodeVersions();
         foreach ($toolkitVersions as $ver => $label) {

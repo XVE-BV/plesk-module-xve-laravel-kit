@@ -262,6 +262,62 @@ class Modules_XveLaravelKit_DeploySettings
         return $versions;
     }
 
+    // -- PHP version --
+
+    /**
+     * Selected PHP version for deploys. 'auto' = detect from the domain's
+     * Plesk PHP handler (recommended). An explicit "8.4" pins that version.
+     */
+    public function getPhpVersion()
+    {
+        return pm_Settings::get($this->_prefix . 'php_version', 'auto');
+    }
+
+    public function setPhpVersion($value)
+    {
+        pm_Settings::set($this->_prefix . 'php_version', $value);
+    }
+
+    /**
+     * Bin directory for the explicitly selected PHP version, or '' when set to
+     * 'auto' (let the Deployer detect it from the domain's PHP handler).
+     */
+    public function getPhpBinDir()
+    {
+        $version = $this->getPhpVersion();
+        if ($version === 'auto' || $version === 'system' || empty($version)) {
+            return '';
+        }
+        return '/opt/plesk/php/' . $version . '/bin';
+    }
+
+    /**
+     * Discover installed Plesk PHP versions from /opt/plesk/php.
+     * Returns array like ['8.4' => '8.4', ...] (only versions with a php binary).
+     */
+    public static function getAvailablePhpVersions()
+    {
+        $versions = [];
+        $baseDir = '/opt/plesk/php';
+        if (!is_dir($baseDir)) {
+            return $versions;
+        }
+        $dirs = @scandir($baseDir);
+        if (!is_array($dirs)) {
+            return $versions;
+        }
+        foreach ($dirs as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+            if (file_exists($baseDir . '/' . $entry . '/bin/php')) {
+                $versions[$entry] = $entry;
+            }
+        }
+        uksort($versions, 'version_compare');
+        return $versions;
+    }
+
     // -- Shared directories / files --
 
     const DEFAULT_SHARED_DIRS = "storage\nlogs";
