@@ -359,7 +359,7 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
                 $error
             );
         } catch (\Throwable $e) {
-            pm_Log::warning('Teams notification failed: ' . $e->getMessage());
+            pm_Log::warn('Teams notification failed: ' . $e->getMessage());
         }
     }
 

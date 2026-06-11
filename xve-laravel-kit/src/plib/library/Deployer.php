@@ -1113,7 +1113,7 @@ class Modules_XveLaravelKit_Deployer
         if (is_dir($currentLink) && !is_link($currentLink)) {
             $backupName = 'current-backup-' . date('Ymd_His');
             $backupPath = $this->_basePath . '/' . $backupName;
-            \pm_Log::warning(
+            \pm_Log::warn(
                 "switchRelease: 'current' is a real directory, moving to backup: {$backupPath}"
             );
             $this->_exec(sprintf('mv %s %s', escapeshellarg($currentLink), escapeshellarg($backupPath)));
@@ -1469,7 +1469,7 @@ class Modules_XveLaravelKit_Deployer
                 if ($this->_dirExists($explicit)) {
                     return $explicit;
                 }
-                \pm_Log::warning('xve-laravel-kit: configured PHP bin dir ' . $explicit
+                \pm_Log::warn('xve-laravel-kit: configured PHP bin dir ' . $explicit
                     . ' does not exist; falling back to auto-detection.');
             }
         } catch (\Throwable $e) {}
@@ -1486,10 +1486,10 @@ class Modules_XveLaravelKit_Deployer
             if ($this->_dirExists($dir)) {
                 return $dir;
             }
-            \pm_Log::warning('xve-laravel-kit: PHP handler "' . $handler . '" resolved to '
+            \pm_Log::warn('xve-laravel-kit: PHP handler "' . $handler . '" resolved to '
                 . $version . ' but ' . $dir . ' is missing.');
         } else {
-            \pm_Log::warning('xve-laravel-kit: could not determine PHP version from handler id "'
+            \pm_Log::warn('xve-laravel-kit: could not determine PHP version from handler id "'
                 . $handler . '".');
         }
 
@@ -1498,7 +1498,7 @@ class Modules_XveLaravelKit_Deployer
         try {
             $dir = trim($this->_exec('ls -d /opt/plesk/php/*/bin 2>/dev/null | sort -V | tail -1'));
             if ($dir !== '') {
-                \pm_Log::warning('xve-laravel-kit: falling back to newest installed PHP (' . $dir
+                \pm_Log::warn('xve-laravel-kit: falling back to newest installed PHP (' . $dir
                     . '). Set an explicit PHP version in the deploy settings if this is wrong.');
                 return $dir;
             }

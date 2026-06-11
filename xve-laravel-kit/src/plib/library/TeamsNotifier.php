@@ -95,7 +95,7 @@ class Modules_XveLaravelKit_TeamsNotifier
             $output = isset($result['stdout']) ? trim($result['stdout']) : '';
             pm_Log::info('Teams webhook: sent OK — ' . $output);
         } catch (\Throwable $e) {
-            pm_Log::warning('Teams webhook failed: ' . $e->getMessage());
+            pm_Log::warn('Teams webhook failed: ' . $e->getMessage());
         }
     }
 }
