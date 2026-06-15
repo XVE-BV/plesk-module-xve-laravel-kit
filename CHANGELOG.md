@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.2.0
+
+- Teams deploy notifications are now **Adaptive Cards** (icon + title, fact set, and Open site / View commit actions) sent as the Power Automate Workflows envelope, matching the nassau deployer. **Action required:** the Teams webhook must be a Teams *Workflow* URL ("Post to a channel when a webhook request is received") — legacy Office 365 connector URLs no longer render these cards. Reconfigure the webhook under Extension Settings after upgrading
+
 ## v2.1.1
 
 - Fix Extension Settings clobbering: the page had two separate forms posting to the same action, so saving Teams notifications wiped the repo allowlist (and vice versa). Both sections are now a single form, so all fields save together. An emptied allowlist fails closed and blocks deploys, so re-check both fields after upgrading
