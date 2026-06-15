@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.1.1
+
+- Fix Extension Settings clobbering: the page had two separate forms posting to the same action, so saving Teams notifications wiped the repo allowlist (and vice versa). Both sections are now a single form, so all fields save together. An emptied allowlist fails closed and blocks deploys, so re-check both fields after upgrading
+
 ## v2.1.0
 
 Security hardening (OPS-25 review). **Breaking:** the webhook no longer accepts the `?secret=` query parameter; callers must send `Authorization: Bearer <secret>`.
