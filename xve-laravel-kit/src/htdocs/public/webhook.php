@@ -1,13 +1,15 @@
 <?php
 /**
- * Public webhook endpoint — no Plesk login required.
+ * Public webhook endpoint -- no Plesk login required.
  *
  * URL: https://<plesk>:8443/modules/xve-laravel-kit/public/webhook.php
  *
  * Usage:
- *   POST ?secret=<token>
  *   POST with Authorization: Bearer <token>
  *   Optional JSON body: {"branch": "main", "force": true}
+ *
+ * Rate limit: 20 requests per 60 seconds per client IP.
+ * On limit exceeded: HTTP 429 with Retry-After header.
  */
 
 // Bootstrap Plesk SDK and extension autoloading
@@ -23,18 +25,29 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-// Extract secret from query string or Authorization header
-$secret = isset($_GET['secret']) ? $_GET['secret'] : '';
-if (empty($secret)) {
-    $authHeader = isset($_SERVER['HTTP_AUTHORIZATION']) ? $_SERVER['HTTP_AUTHORIZATION'] : '';
-    if (strpos($authHeader, 'Bearer ') === 0) {
-        $secret = substr($authHeader, 7);
-    }
+// Rate limit by client IP before any auth work, so secret-guessing is throttled too.
+// Trust only REMOTE_ADDR -- never X-Forwarded-For for a security decision.
+$clientIp = $_SERVER['REMOTE_ADDR'];
+if (!Modules_XveLaravelKit_RateLimiter::allow($clientIp)) {
+    $retryAfter = Modules_XveLaravelKit_RateLimiter::retryAfter($clientIp);
+    http_response_code(429);
+    header('Retry-After: ' . $retryAfter);
+    echo json_encode(['error' => 'Too many requests. Try again in ' . $retryAfter . ' seconds.']);
+    exit;
+}
+
+// Extract secret from Authorization header only.
+// The ?secret= query-string path has been removed: it leaks tokens in access
+// logs, proxy logs, and Referer headers.
+$secret = '';
+$authHeader = isset($_SERVER['HTTP_AUTHORIZATION']) ? $_SERVER['HTTP_AUTHORIZATION'] : '';
+if (strpos($authHeader, 'Bearer ') === 0) {
+    $secret = substr($authHeader, 7);
 }
 
 if (empty($secret)) {
     http_response_code(401);
-    echo json_encode(['error' => 'Missing secret. Pass as ?secret=... or Authorization: Bearer header.']);
+    echo json_encode(['error' => 'Missing or invalid Authorization header. Use: Authorization: Bearer <token>']);
     exit;
 }
 
@@ -62,9 +75,17 @@ if (!empty($body)) {
     }
 }
 
-// Concurrency guard — cancel or reject depending on force flag
+// Concurrency guard -- cancel or reject depending on force flag and domain config
 if (Modules_XveLaravelKit_Task_Deploy::isLocked($domain->getId())) {
     if ($force) {
+        if (!$settings->isWebhookForceAllowed()) {
+            http_response_code(409);
+            echo json_encode([
+                'error'  => 'Force-deploy is disabled for this domain. Enable it in the XVE Laravel Kit settings for this domain.',
+                'domain' => $domain->getDisplayName(),
+            ]);
+            exit;
+        }
         Modules_XveLaravelKit_Task_Deploy::cancelRunning($domain->getId());
     } else {
         http_response_code(409);

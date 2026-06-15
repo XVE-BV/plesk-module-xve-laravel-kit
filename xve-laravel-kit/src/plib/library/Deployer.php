@@ -107,13 +107,8 @@ class Modules_XveLaravelKit_Deployer
 
         // Recursive ownership + permissions on shared/ so Laravel can write
         $sharedPath = $this->_basePath . '/shared';
-        $this->_exec(sprintf('chown -R %s:%s %s',
-            escapeshellarg($user),
-            escapeshellarg($group),
-            escapeshellarg($sharedPath)
-        ));
-        $this->_exec(sprintf('find %s -type d -exec chmod 775 {} +', escapeshellarg($sharedPath)));
-        $this->_exec(sprintf('find %s -type f -exec chmod 664 {} +', escapeshellarg($sharedPath)));
+        $this->_sbin('chown-r', [$user, $group, $sharedPath]);
+        $this->_sbin('fix-shared-perms', [$sharedPath]);
 
         // Set Plesk document root to current/public (current is a symlink to the active release)
         if ($setWwwRoot) {
@@ -129,9 +124,7 @@ class Modules_XveLaravelKit_Deployer
     public function setWwwRoot()
     {
         $domainName = $this->_domain->getDisplayName();
-        $this->_exec(sprintf('plesk bin site --update %s -www-root current/public',
-            escapeshellarg($domainName)
-        ));
+        $this->_sbin('plesk-site-wwwroot', [$domainName, 'current/public']);
         $this->_settings->setWwwRootSet(true);
     }
 
@@ -146,26 +139,20 @@ class Modules_XveLaravelKit_Deployer
         // Reset Plesk document root back to httpdocs
         $domainName = $this->_domain->getDisplayName();
         try {
-            $this->_exec(sprintf('plesk bin site --update %s -www-root httpdocs',
-                escapeshellarg($domainName)
-            ));
+            $this->_sbin('plesk-site-wwwroot', [$domainName, 'httpdocs']);
         } catch (\Throwable $e) {}
 
         // Remove current symlink
-        $this->_exec('rm -f ' . escapeshellarg($this->_basePath . '/current'));
-        $this->_exec('rm -f ' . escapeshellarg($this->_basePath . '/artisan'));
-        $this->_exec('rm -f ' . escapeshellarg($this->_basePath . '/' . self::HISTORY_FILE));
+        $this->_sbin('rm-f', [$this->_basePath . '/current']);
+        $this->_sbin('rm-f', [$this->_basePath . '/artisan']);
+        $this->_sbin('rm-f', [$this->_basePath . '/' . self::HISTORY_FILE]);
 
         // Ensure httpdocs exists so Plesk has a valid document root
         $httpdocs = $this->_basePath . '/httpdocs';
         if (!$this->_dirExists($httpdocs)) {
-            $this->_exec('mkdir -p ' . escapeshellarg($httpdocs));
+            $this->_sbin('mkdir-p', [$httpdocs]);
             $user = $this->_getSystemUser();
-            $this->_exec(sprintf('chown %s:%s %s',
-                escapeshellarg($user),
-                escapeshellarg('psaserv'),
-                escapeshellarg($httpdocs)
-            ));
+            $this->_sbin('chown', [$user, 'psaserv', $httpdocs]);
         }
 
         // Archive shared/ before deletion so .env, uploads, and logs can be recovered
@@ -176,20 +163,16 @@ class Modules_XveLaravelKit_Deployer
         if ($this->_dirExists($sharedPath)) {
             $sharedArchive = $this->_basePath . '/shared-teardown-' . $timestamp . '.tar.gz';
             try {
-                $this->_exec(sprintf(
-                    'tar -czf %s -C %s shared',
-                    escapeshellarg($sharedArchive),
-                    escapeshellarg($this->_basePath)
-                ));
+                $this->_sbin('tar-czf-shared', [$sharedArchive, $this->_basePath]);
                 \pm_Log::info('Teardown: shared/ backed up to ' . $sharedArchive);
             } catch (\Throwable $e) {
-                \pm_Log::info('Teardown: could not archive shared/ — ' . $e->getMessage());
+                \pm_Log::info('Teardown: could not archive shared/ - ' . $e->getMessage());
             }
         }
 
         // Remove releases and shared (releases are re-deployable from git, so no backup needed)
-        $this->_exec('rm -rf ' . escapeshellarg($this->_basePath . '/releases'));
-        $this->_exec('rm -rf ' . escapeshellarg($this->_basePath . '/shared'));
+        $this->_sbin('rm-rf', [$this->_basePath . '/releases']);
+        $this->_sbin('rm-rf', [$this->_basePath . '/shared']);
     }
 
     // ─── Deploy ────────────────────────────────────────────────
@@ -284,7 +267,7 @@ class Modules_XveLaravelKit_Deployer
         }
 
         try {
-            $output = $this->_exec('ls -1r ' . escapeshellarg($releasesDir) . ' 2>/dev/null');
+            $output = $this->_sbin('ls-1r', [$releasesDir]);
         } catch (\Throwable $e) {
             return [];
         }
@@ -346,10 +329,10 @@ class Modules_XveLaravelKit_Deployer
         foreach ($releases as $release) {
             // Only remove releases explicitly marked as 'failed' in the deploy history.
             // Successful and rollback releases are kept so that _cleanup() / keepReleases
-            // can prune them in a controlled way — preserving rollback capability.
+            // can prune them in a controlled way, preserving rollback capability.
             if (!$release['current'] && in_array($release['status'], ['failed', 'unknown'], true)) {
                 $path = $this->_basePath . '/releases/' . $release['name'];
-                $this->_exec('rm -rf ' . escapeshellarg($path));
+                $this->_sbin('rm-rf', [$path]);
                 $removed++;
             }
         }
@@ -417,7 +400,7 @@ class Modules_XveLaravelKit_Deployer
         try {
             $phpBinDir = $this->_getPhpBinDir();
             $phpBin = $phpBinDir ? $phpBinDir . '/php' : 'php';
-            $info['php_version'] = trim($this->_exec($phpBin . ' -r "echo PHP_VERSION;" 2>/dev/null'));
+            $info['php_version'] = trim($this->_sbin('php-version', [$phpBin]));
         } catch (\Throwable $e) {}
 
         // .env values
@@ -497,15 +480,15 @@ class Modules_XveLaravelKit_Deployer
         $this->_fileManager->filePutContents($path, $contents);
 
         $user = $this->_getSystemUser();
-        $this->_exec(sprintf('chown %s:psaserv %s', escapeshellarg($user), escapeshellarg($path)));
-        $this->_exec(sprintf('chmod 600 %s', escapeshellarg($path)));
+        $this->_sbin('chown', [$user, 'psaserv', $path]);
+        $this->_sbin('chmod', ['600', $path]);
     }
 
     public function deleteComposerAuth()
     {
         $path = $this->getComposerAuthPath();
         if ($this->_fileManager->fileExists($path)) {
-            $this->_exec('rm -f ' . escapeshellarg($path));
+            $this->_sbin('rm-f', [$path]);
         }
     }
 
@@ -615,7 +598,7 @@ class Modules_XveLaravelKit_Deployer
         try {
             if ($this->_fileManager->fileExists($envPath)) {
                 $backup = $this->_basePath . '/shared/.env.backup.' . date('Ymd_His');
-                $this->_exec(sprintf('cp %s %s', escapeshellarg($envPath), escapeshellarg($backup)));
+                $this->_sbin('cp', [$envPath, $backup]);
             }
         } catch (\Throwable $e) {}
 
@@ -627,7 +610,7 @@ class Modules_XveLaravelKit_Deployer
                 sort($backups);
                 $excess = array_slice($backups, 0, count($backups) - 10);
                 foreach ($excess as $old) {
-                    $this->_exec('rm -f ' . escapeshellarg($old));
+                    $this->_sbin('rm-f', [$old]);
                 }
             }
         } catch (\Throwable $e) {}
@@ -636,11 +619,7 @@ class Modules_XveLaravelKit_Deployer
 
         // Chown to system user
         $user = $this->_getSystemUser();
-        $this->_exec(sprintf('chown %s:%s %s',
-            escapeshellarg($user),
-            escapeshellarg('psaserv'),
-            escapeshellarg($envPath)
-        ));
+        $this->_sbin('chown', [$user, 'psaserv', $envPath]);
     }
 
     /**
@@ -717,15 +696,17 @@ class Modules_XveLaravelKit_Deployer
         }
 
         $phpBinDir = $this->_getPhpBinDir();
-        $pathExport = $phpBinDir ? 'export PATH="' . $phpBinDir . ':$PATH" && ' : '';
+        $pathExport = $phpBinDir ? 'export PATH="' . $phpBinDir . ':$PATH"' . "\n" : '';
 
         try {
-            $fullCmd = sprintf(
-                'su -s /bin/bash %s -c %s 2>&1',
-                escapeshellarg($this->_getSystemUser()),
-                escapeshellarg($pathExport . 'cd ' . escapeshellarg($currentPath) . ' && php artisan ' . $command)
+            $scriptPath = $currentPath . '/.xve-artisan-' . uniqid() . '.sh';
+            $this->_fileManager->filePutContents(
+                $scriptPath,
+                "#!/bin/bash\nset -euo pipefail\n" . $pathExport . 'cd ' . escapeshellarg($currentPath) . ' && php artisan ' . $command . "\n"
             );
-            $output = $this->_exec($fullCmd);
+            $this->_sbin('chmod', ['+x', $scriptPath]);
+            $output = $this->_sbin('run-script-as-user', [$this->_getSystemUser(), $scriptPath]);
+            $this->_sbin('rm-f', [$scriptPath]);
             return ['success' => true, 'output' => $output];
         } catch (\Throwable $e) {
             return ['success' => false, 'output' => $e->getMessage()];
@@ -742,7 +723,7 @@ class Modules_XveLaravelKit_Deployer
             if (!$this->_fileManager->fileExists($logPath)) {
                 return '';
             }
-            $output = $this->_exec(sprintf('tail -n %d %s 2>/dev/null', (int) $lines, escapeshellarg($logPath)));
+            $output = $this->_sbin('tail-n', [(string)(int)$lines, $logPath]);
             return $output;
         } catch (\Throwable $e) {
             return 'Error reading log: ' . $e->getMessage();
@@ -757,7 +738,7 @@ class Modules_XveLaravelKit_Deployer
         $logPath = $this->_basePath . '/shared/storage/logs/laravel.log';
         try {
             if ($this->_fileManager->fileExists($logPath)) {
-                $this->_exec('truncate -s 0 ' . escapeshellarg($logPath));
+                $this->_sbin('truncate0', [$logPath]);
             }
             return true;
         } catch (\Throwable $e) {
@@ -795,7 +776,7 @@ class Modules_XveLaravelKit_Deployer
         }
         $pathPrefix = !empty($pathDirs) ? 'export PATH="' . implode(':', $pathDirs) . ':$PATH" && ' : '';
 
-        $checks['git'] = $this->_checkTool('git', 'git --version');
+        $checks['git'] = $this->_checkGitTool();
         $checks['php'] = $this->_checkToolAsUser($user, $pathPrefix . 'php --version | head -1');
         $checks['composer'] = $this->_checkToolAsUser($user, $pathPrefix . 'composer --version 2>&1 | head -1');
         $checks['node'] = $this->_checkToolAsUser($user, $pathPrefix . 'node --version 2>&1');
@@ -816,7 +797,7 @@ class Modules_XveLaravelKit_Deployer
 
         $basePathOk = false;
         try {
-            $result = $this->_exec('test -d ' . escapeshellarg($this->_basePath) . ' && test -w ' . escapeshellarg($this->_basePath) . ' && echo "yes" || echo "no"');
+            $result = $this->_sbin('test-dir-writable', [$this->_basePath]);
             $basePathOk = trim($result) === 'yes';
         } catch (\Throwable $e) {}
         $checks['base_path'] = [
@@ -856,10 +837,7 @@ class Modules_XveLaravelKit_Deployer
     {
         try {
             $domainId = $this->_domain->getId();
-            $output = $this->_exec(sprintf(
-                'plesk db "SELECT db.name, du.login FROM data_bases db LEFT JOIN db_users du ON du.db_id = db.id WHERE db.dom_id = %d LIMIT 1"',
-                (int) $domainId
-            ));
+            $output = $this->_sbin('detect-db', [(string) (int) $domainId]);
             $output = trim($output);
             if (empty($output)) {
                 return null;
@@ -904,12 +882,8 @@ class Modules_XveLaravelKit_Deployer
 
         foreach ($paths as $path) {
             if (!$this->_fileManager->fileExists($path)) {
-                $this->_exec('mkdir -p ' . escapeshellarg($path));
-                $this->_exec(sprintf('chown -R %s:%s %s',
-                    escapeshellarg($user),
-                    escapeshellarg('psaserv'),
-                    escapeshellarg($path)
-                ));
+                $this->_sbin('mkdir-p', [$path]);
+                $this->_sbin('chown-r', [$user, 'psaserv', $path]);
             }
         }
     }
@@ -921,18 +895,13 @@ class Modules_XveLaravelKit_Deployer
             return [];
         }
 
-        $envPrefix = '';
-        if ($this->_settings->isSshRepo()) {
-            Modules_XveLaravelKit_SshKey::ensure($this->_settings);
-            $keyPath = $this->_settings->getSshPrivateKeyPath();
-            $envPrefix = sprintf(
-                'GIT_SSH_COMMAND=%s ',
-                escapeshellarg('ssh -i ' . $keyPath . ' -o StrictHostKeyChecking=accept-new')
-            );
+        if (!Modules_XveLaravelKit_DeploySettings::validateRepoUrl($repo)) {
+            return [];
         }
 
-        $cmd = sprintf('%sgit ls-remote --heads %s 2>&1', $envPrefix, escapeshellarg($repo));
-        $output = $this->_exec($cmd);
+        $key = $this->_settings->getSshPrivateKeyPath();
+        $knownHosts = Modules_XveLaravelKit_SshKey::ensureKnownHosts($this->_settings);
+        $output = $this->_sbin('git-ls-remote', [$key, $knownHosts, $repo]);
 
         $branches = [];
         foreach (explode("\n", trim($output)) as $line) {
@@ -956,46 +925,27 @@ class Modules_XveLaravelKit_Deployer
             return '';
         }
 
-        $envPrefix = '';
-        if ($this->_settings->isSshRepo()) {
-            Modules_XveLaravelKit_SshKey::ensure($this->_settings);
-            $keyPath = $this->_settings->getSshPrivateKeyPath();
-            $envPrefix = sprintf(
-                'GIT_SSH_COMMAND=%s ',
-                escapeshellarg('ssh -i ' . $keyPath . ' -o StrictHostKeyChecking=accept-new')
-            );
+        if (!Modules_XveLaravelKit_DeploySettings::validateRepoUrl($repo)) {
+            return '';
         }
 
+        $key = $this->_settings->getSshPrivateKeyPath();
+        $knownHosts = Modules_XveLaravelKit_SshKey::ensureKnownHosts($this->_settings);
+
         try {
-            $cmd = sprintf(
-                '%sgit archive --remote=%s %s %s 2>/dev/null | tar -xO %s 2>/dev/null',
-                $envPrefix,
-                escapeshellarg($repo),
-                escapeshellarg($branch),
-                escapeshellarg($filePath),
-                escapeshellarg($filePath)
-            );
-            return $this->_exec($cmd);
+            return $this->_sbin('git-archive-file', [$key, $knownHosts, $repo, $branch, $filePath]);
         } catch (\Throwable $e) {
             // git archive may not be supported (e.g. GitHub), try shallow clone fallback
+            $tmpDir = '/tmp/xlk-init-' . uniqid();
             try {
-                $tmpDir = '/tmp/xlk-init-' . uniqid();
-                $cloneCmd = sprintf(
-                    '%sgit clone --depth 1 --quiet --branch %s --no-checkout %s %s 2>&1 && git -C %s checkout HEAD -- %s 2>&1',
-                    $envPrefix,
-                    escapeshellarg($branch),
-                    escapeshellarg($repo),
-                    escapeshellarg($tmpDir),
-                    escapeshellarg($tmpDir),
-                    escapeshellarg($filePath)
-                );
-                $this->_exec($cloneCmd);
+                $quiet = ($this->_settings->getDeployMode() === 'quiet') ? '1' : '0';
+                $this->_sbin('git-clone-file', [$key, $knownHosts, $quiet, $branch, $repo, $tmpDir, $filePath]);
                 $contents = $this->_fileManager->fileGetContents($tmpDir . '/' . $filePath);
-                $this->_exec('rm -rf ' . escapeshellarg($tmpDir));
+                $this->_sbin('rm-rf', [$tmpDir]);
                 return $contents;
             } catch (\Throwable $e2) {
-                // Cleanup and return empty — file may not exist in repo
-                try { $this->_exec('rm -rf ' . escapeshellarg($tmpDir)); } catch (\Throwable $e3) {}
+                // Cleanup and return empty; file may not exist in repo
+                try { $this->_sbin('rm-rf', [$tmpDir]); } catch (\Throwable $e3) {}
                 return '';
             }
         }
@@ -1006,40 +956,26 @@ class Modules_XveLaravelKit_Deployer
         $repo = $this->_settings->getGitRepo();
         $branch = $branchOverride ?: $this->_settings->getBranch();
 
-        $envPrefix = '';
-        if ($this->_settings->isSshRepo()) {
-            Modules_XveLaravelKit_SshKey::ensure($this->_settings);
-            $keyPath = $this->_settings->getSshPrivateKeyPath();
-            $envPrefix = sprintf(
-                'GIT_SSH_COMMAND=%s ',
-                escapeshellarg('ssh -i ' . $keyPath . ' -o StrictHostKeyChecking=accept-new')
-            );
+        if (!Modules_XveLaravelKit_DeploySettings::validateRepoUrl($repo)) {
+            throw new pm_Exception('Refusing to deploy: repository URL is not on the allowlist (a configured GitHub org over SSH only): ' . $repo);
         }
 
-        $mode = $this->_settings->getDeployMode();
-        $q = ($mode === 'quiet') ? ' --quiet' : '';
+        $key = $this->_settings->getSshPrivateKeyPath();
+        $knownHosts = Modules_XveLaravelKit_SshKey::ensureKnownHosts($this->_settings);
+        $quiet = ($this->_settings->getDeployMode() === 'quiet') ? '1' : '0';
 
-        $cmd = sprintf(
-            '%sgit clone --depth 1%s --branch %s %s %s 2>&1',
-            $envPrefix,
-            $q,
-            escapeshellarg($branch),
-            escapeshellarg($repo),
-            escapeshellarg($releasePath)
-        );
-
-        $output = $this->_exec($cmd);
+        $output = $this->_sbin('git-clone', [$key, $knownHosts, $quiet, $branch, $repo, $releasePath]);
 
         if (!$this->_dirExists($releasePath . '/.git')) {
             throw new pm_Exception('Git clone failed: ' . $output);
         }
 
         // Capture commit info before removing .git
-        $commitHash = trim($this->_exec('git -C ' . escapeshellarg($releasePath) . ' rev-parse HEAD 2>/dev/null'));
-        $commitMsg = trim($this->_exec('git -C ' . escapeshellarg($releasePath) . ' log -1 --pretty=%s 2>/dev/null'));
-        $commitAuthor = trim($this->_exec('git -C ' . escapeshellarg($releasePath) . ' log -1 --pretty=%an 2>/dev/null'));
+        $commitHash = trim($this->_sbin('git-rev-parse', [$releasePath]));
+        $commitMsg = trim($this->_sbin('git-log', [$releasePath, '%s']));
+        $commitAuthor = trim($this->_sbin('git-log', [$releasePath, '%an']));
 
-        $this->_exec('rm -rf ' . escapeshellarg($releasePath . '/.git'));
+        $this->_sbin('rm-rf', [$releasePath . '/.git']);
 
         return [
             'hash' => $commitHash,
@@ -1058,18 +994,14 @@ class Modules_XveLaravelKit_Deployer
             $shared = $this->_basePath . '/shared/' . $dir;
             $parentDir = dirname($target);
             if ($parentDir !== $releasePath) {
-                $this->_exec('mkdir -p ' . escapeshellarg($parentDir));
+                $this->_sbin('mkdir-p', [$parentDir]);
             }
             if (!$this->_fileManager->fileExists($shared)) {
-                $this->_exec('mkdir -p ' . escapeshellarg($shared));
-                $this->_exec(sprintf('chown -R %s:%s %s',
-                    escapeshellarg($user),
-                    escapeshellarg('psaserv'),
-                    escapeshellarg($shared)
-                ));
+                $this->_sbin('mkdir-p', [$shared]);
+                $this->_sbin('chown-r', [$user, 'psaserv', $shared]);
             }
-            $this->_exec('rm -rf ' . escapeshellarg($target));
-            $this->_exec(sprintf('ln -sfn %s %s', escapeshellarg($shared), escapeshellarg($target)));
+            $this->_sbin('rm-rf', [$target]);
+            $this->_sbin('ln-sfn', [$shared, $target]);
         }
 
         foreach ($this->_settings->getSharedFiles() as $file) {
@@ -1079,17 +1011,13 @@ class Modules_XveLaravelKit_Deployer
             if ($this->_fileManager->fileExists($shared)) {
                 $parentDir = dirname($target);
                 if ($parentDir !== $releasePath) {
-                    $this->_exec('mkdir -p ' . escapeshellarg($parentDir));
+                    $this->_sbin('mkdir-p', [$parentDir]);
                 }
-                $this->_exec('rm -f ' . escapeshellarg($target));
-                $this->_exec(sprintf('ln -sfn %s %s', escapeshellarg($shared), escapeshellarg($target)));
+                $this->_sbin('rm-f', [$target]);
+                $this->_sbin('ln-sfn', [$shared, $target]);
             } elseif (!$this->_fileManager->fileExists($sharedParentDir)) {
-                $this->_exec('mkdir -p ' . escapeshellarg($sharedParentDir));
-                $this->_exec(sprintf('chown -R %s:%s %s',
-                    escapeshellarg($user),
-                    escapeshellarg('psaserv'),
-                    escapeshellarg($sharedParentDir)
-                ));
+                $this->_sbin('mkdir-p', [$sharedParentDir]);
+                $this->_sbin('chown-r', [$user, 'psaserv', $sharedParentDir]);
             }
         }
 
@@ -1097,8 +1025,8 @@ class Modules_XveLaravelKit_Deployer
         $authJson = $this->_basePath . '/shared/auth.json';
         if ($this->_fileManager->fileExists($authJson)) {
             $target = $releasePath . '/auth.json';
-            $this->_exec('rm -f ' . escapeshellarg($target));
-            $this->_exec(sprintf('ln -sfn %s %s', escapeshellarg($authJson), escapeshellarg($target)));
+            $this->_sbin('rm-f', [$target]);
+            $this->_sbin('ln-sfn', [$authJson, $target]);
         }
     }
 
@@ -1116,7 +1044,7 @@ class Modules_XveLaravelKit_Deployer
             \pm_Log::warn(
                 "switchRelease: 'current' is a real directory, moving to backup: {$backupPath}"
             );
-            $this->_exec(sprintf('mv %s %s', escapeshellarg($currentLink), escapeshellarg($backupPath)));
+            $this->_sbin('mv', [$currentLink, $backupPath]);
 
             // Keep only the last 2 current-backup-* directories to avoid unbounded growth
             $backupList = glob($this->_basePath . '/current-backup-*', GLOB_ONLYDIR);
@@ -1124,19 +1052,19 @@ class Modules_XveLaravelKit_Deployer
                 sort($backupList);
                 $toDelete = array_slice($backupList, 0, max(0, count($backupList) - 2));
                 foreach ($toDelete as $old) {
-                    $this->_exec('rm -rf ' . escapeshellarg($old));
+                    $this->_sbin('rm-rf', [$old]);
                 }
             }
         }
 
         // Atomic symlink switch: create temp link, then rename over current
-        $this->_exec(sprintf('ln -sfn %s %s', escapeshellarg($releasePath), escapeshellarg($tempLink)));
-        $this->_exec(sprintf('mv -Tf %s %s', escapeshellarg($tempLink), escapeshellarg($currentLink)));
+        $this->_sbin('ln-sfn', [$releasePath, $tempLink]);
+        $this->_sbin('mv-tf', [$tempLink, $currentLink]);
 
         // Fix symlink ownership — nginx's disable_symlinks if_not_owner
         // requires the symlink itself to be owned by the domain user
         $user = $this->_getSystemUser();
-        $this->_exec(sprintf('chown -h %s:psaserv %s', escapeshellarg($user), escapeshellarg($currentLink)));
+        $this->_sbin('chown-h', [$user, 'psaserv', $currentLink]);
     }
 
     private function _ensureArtisanSymlink()
@@ -1144,7 +1072,7 @@ class Modules_XveLaravelKit_Deployer
         $artisanLink = $this->_basePath . '/artisan';
         $target = 'current/artisan';
         if ($this->_fileManager->fileExists($this->_basePath . '/current/artisan')) {
-            $this->_exec(sprintf('ln -sfn %s %s', escapeshellarg($target), escapeshellarg($artisanLink)));
+            $this->_sbin('ln-sfn', [$target, $artisanLink]);
         }
     }
 
@@ -1153,11 +1081,11 @@ class Modules_XveLaravelKit_Deployer
         $publicStorage = $releasePath . '/public/storage';
         $target = $this->_basePath . '/shared/storage/app/public';
         if ($this->_dirExists($target) && !$this->_fileManager->fileExists($publicStorage)) {
-            $this->_exec(sprintf('ln -sfn %s %s', escapeshellarg($target), escapeshellarg($publicStorage)));
-            // chown the symlink itself — nginx disable_symlinks if_not_owner
+            $this->_sbin('ln-sfn', [$target, $publicStorage]);
+            // chown the symlink itself; nginx disable_symlinks if_not_owner
             // requires the symlink owner to match the target owner
             $user = $this->_getSystemUser();
-            $this->_exec(sprintf('chown -h %s:psaserv %s', escapeshellarg($user), escapeshellarg($publicStorage)));
+            $this->_sbin('chown-h', [$user, 'psaserv', $publicStorage]);
         }
     }
 
@@ -1183,24 +1111,12 @@ class Modules_XveLaravelKit_Deployer
             throw new pm_Exception('Health check URL must be on the same domain.');
         }
 
-        $cmd = sprintf(
-            // -L follows redirects as a safety net (e.g. http -> https redirects).
-            'curl -sfL --max-time %d -o /dev/null -w "%%{http_code}" %s 2>&1',
-            (int) $timeout,
-            escapeshellarg($url)
-        );
-
-        $httpCode = trim($this->_exec($cmd));
+        $httpCode = trim($this->_sbin('curl-health', [(string)(int)$timeout, $url]));
         $code = (int) $httpCode;
 
         if (($code < 200 || $code >= 400) && $autoHttps) {
             $url = str_replace('https://', 'http://', $url);
-            $cmd = sprintf(
-                'curl -sfL --max-time %d -o /dev/null -w "%%{http_code}" %s 2>&1',
-                (int) $timeout,
-                escapeshellarg($url)
-            );
-            $httpCode = trim($this->_exec($cmd));
+            $httpCode = trim($this->_sbin('curl-health', [(string)(int)$timeout, $url]));
             $code = (int) $httpCode;
         }
 
@@ -1232,15 +1148,11 @@ class Modules_XveLaravelKit_Deployer
         $this->_fileManager->filePutContents($scriptPath,
             "#!/bin/bash\nset -euo pipefail\n" . $pathExport . "cd " . escapeshellarg($releasePath) . "\n" . $script
         );
-        $this->_exec('chmod +x ' . escapeshellarg($scriptPath));
+        $this->_sbin('chmod', ['+x', $scriptPath]);
 
-        $output = $this->_exec(sprintf(
-            'su -s /bin/bash %s -c %s 2>&1',
-            escapeshellarg($this->_getSystemUser()),
-            escapeshellarg('bash ' . $scriptPath)
-        ));
+        $output = $this->_sbin('run-script-as-user', [$this->_getSystemUser(), $scriptPath]);
 
-        $this->_exec('rm -f ' . escapeshellarg($scriptPath));
+        $this->_sbin('rm-f', [$scriptPath]);
 
         return $output;
     }
@@ -1335,7 +1247,7 @@ class Modules_XveLaravelKit_Deployer
                 continue;
             }
             $path = $this->_basePath . '/releases/' . $release['name'];
-            $this->_exec('rm -rf ' . escapeshellarg($path));
+            $this->_sbin('rm-rf', [$path]);
         }
     }
 
@@ -1376,21 +1288,13 @@ class Modules_XveLaravelKit_Deployer
     private function _chownRelease($releasePath)
     {
         $user = $this->_getSystemUser();
-        // Recursively chown the release directory — it's a fresh clone so this is safe and necessary.
-        $this->_exec(sprintf('chown -R %s:%s %s',
-            escapeshellarg($user),
-            escapeshellarg('psaserv'),
-            escapeshellarg($releasePath)
-        ));
+        // Recursively chown the release directory; it's a fresh clone so this is safe and necessary.
+        $this->_sbin('chown-r', [$user, 'psaserv', $releasePath]);
         // Only chown the shared/ directory itself (non-recursive). The contents are
         // persistent across deploys and already have correct ownership, so running
         // chown -R on every deploy is unnecessarily slow on large upload/storage trees.
         $sharedPath = $this->_basePath . '/shared';
-        $this->_exec(sprintf('chown %s:%s %s',
-            escapeshellarg($user),
-            escapeshellarg('psaserv'),
-            escapeshellarg($sharedPath)
-        ));
+        $this->_sbin('chown', [$user, 'psaserv', $sharedPath]);
     }
 
     /**
@@ -1407,13 +1311,8 @@ class Modules_XveLaravelKit_Deployer
         $group = 'psaserv';
 
         // chown -h on the basepath itself fixes symlinks without following them,
-        // and also fixes regular files/dirs. Non-recursive — releases are chowned individually.
-        $this->_exec(sprintf(
-            'find %s -maxdepth 1 -exec chown -h %s:%s {} + 2>/dev/null || true',
-            escapeshellarg($this->_basePath),
-            escapeshellarg($user),
-            escapeshellarg($group)
-        ));
+        // and also fixes regular files/dirs. Non-recursive: releases are chowned individually.
+        $this->_sbin('fix-vhost-ownership', [$user, $group, $this->_basePath]);
     }
 
     private function _getReleaseStatusMap()
@@ -1496,7 +1395,7 @@ class Modules_XveLaravelKit_Deployer
         // 3. Last resort: newest installed PHP. This can pick a version the app does
         //    not support (e.g. a freshly installed 8.5), so make it visible in the log.
         try {
-            $dir = trim($this->_exec('ls -d /opt/plesk/php/*/bin 2>/dev/null | sort -V | tail -1'));
+            $dir = trim($this->_sbin('php-bindir-latest', []));
             if ($dir !== '') {
                 \pm_Log::warn('xve-laravel-kit: falling back to newest installed PHP (' . $dir
                     . '). Set an explicit PHP version in the deploy settings if this is wrong.');
@@ -1510,7 +1409,7 @@ class Modules_XveLaravelKit_Deployer
     private function _dirExists($path)
     {
         try {
-            $result = $this->_exec('test -d ' . escapeshellarg($path) . ' && echo "yes" || echo "no"');
+            $result = $this->_sbin('test-dir', [$path]);
             return trim($result) === 'yes';
         } catch (\Throwable $e) {
             return false;
@@ -1536,13 +1435,13 @@ class Modules_XveLaravelKit_Deployer
         return $parsed;
     }
 
-    private function _checkTool($name, $cmd)
+    private function _checkGitTool()
     {
         try {
-            $output = trim($this->_exec($cmd . ' 2>&1'));
-            return ['name' => $name, 'ok' => true, 'version' => $output, 'required' => false];
+            $output = trim($this->_sbin('git-version', []));
+            return ['name' => 'git', 'ok' => true, 'version' => $output, 'required' => false];
         } catch (\Throwable $e) {
-            return ['name' => $name, 'ok' => false, 'version' => 'Not found', 'required' => false];
+            return ['name' => 'git', 'ok' => false, 'version' => 'Not found', 'required' => false];
         }
     }
 
@@ -1553,8 +1452,11 @@ class Modules_XveLaravelKit_Deployer
             $name = $m[1];
         }
         try {
-            $fullCmd = sprintf('su -s /bin/bash %s -c %s 2>&1', escapeshellarg($user), escapeshellarg($cmd));
-            $output = trim($this->_exec($fullCmd));
+            $scriptPath = $this->_basePath . '/.xve-toolcheck-' . uniqid() . '.sh';
+            $this->_fileManager->filePutContents($scriptPath, "#!/bin/bash\n" . $cmd . "\n");
+            $this->_sbin('chmod', ['+x', $scriptPath]);
+            $output = trim($this->_sbin('run-script-as-user', [$user, $scriptPath]));
+            $this->_sbin('rm-f', [$scriptPath]);
             if (stripos($output, 'not found') !== false || stripos($output, 'No such file') !== false) {
                 return ['name' => $name, 'ok' => false, 'version' => 'Not found', 'required' => false];
             }
@@ -1564,9 +1466,9 @@ class Modules_XveLaravelKit_Deployer
         }
     }
 
-    private function _exec($cmd)
+    private function _sbin($subcommand, array $args = [])
     {
-        $result = pm_ApiCli::callSbin(self::SBIN_SCRIPT, [$cmd]);
+        $result = pm_ApiCli::callSbin(self::SBIN_SCRIPT, array_merge([$subcommand], $args));
         return isset($result['stdout']) ? $result['stdout'] : '';
     }
 
@@ -1580,7 +1482,7 @@ class Modules_XveLaravelKit_Deployer
     public function runDeploySteps($phase, $releasePath) { $this->_runDeploySteps($phase, $releasePath); }
     public function healthCheck() { $this->_healthCheck(); }
     public function cleanup() { $this->_cleanup(); }
-    public function removeRelease($releasePath) { $this->_exec('rm -rf ' . escapeshellarg($releasePath)); }
+    public function removeRelease($releasePath) { $this->_sbin('rm-rf', [$releasePath]); }
 
     public function parkFailedRelease($releasePath)
     {
@@ -1588,9 +1490,9 @@ class Modules_XveLaravelKit_Deployer
         $parkedPath = $basePath . '/releases/_last_failed_release';
 
         // Remove any previously parked failed release
-        $this->_exec('rm -rf ' . escapeshellarg($parkedPath));
+        $this->_sbin('rm-rf', [$parkedPath]);
         // Move the failed release to the parked location
-        $this->_exec('mv ' . escapeshellarg($releasePath) . ' ' . escapeshellarg($parkedPath));
+        $this->_sbin('mv', [$releasePath, $parkedPath]);
     }
     public function ensureArtisanSymlink() { $this->_ensureArtisanSymlink(); }
     public function ensureStorageLink($releasePath) { $this->_ensureStorageLink($releasePath); }

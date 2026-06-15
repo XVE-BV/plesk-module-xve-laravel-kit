@@ -32,3 +32,27 @@
         </div>
     </form>
 </div>
+
+<div style="padding: 20px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 4px; max-width: 700px; margin-top: 20px;">
+    <h3 style="margin-top: 0;">Allowed Git Repositories</h3>
+    <p style="margin-bottom: 16px; font-size: 13px; color: #555;">
+        Deploys are restricted to SSH repositories on <code>github.com</code> owned by one of the
+        organizations below. List one GitHub org/owner per line. <strong>Until at least one org is
+        added, every repository is rejected</strong> and no deploy can run.
+    </p>
+
+    <form method="post" action="<?php echo Modules_XveLaravelKit_Url::action('index/settings'); ?>">
+        <div style="margin-bottom: 12px;">
+            <label style="display: block; font-weight: bold; margin-bottom: 4px; font-size: 13px;">Allowed GitHub organizations</label>
+            <textarea name="allowed_repo_owners" rows="4" placeholder="my-org&#10;another-org"
+                      style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px; font-family: monospace;"><?php echo $this->escape($this->allowedRepoOwners); ?></textarea>
+            <p style="margin: 4px 0 0; font-size: 12px; color: #888;">
+                One per line. Only <code>git@github.com:&lt;org&gt;/&lt;repo&gt;.git</code> URLs whose org appears here are accepted.
+            </p>
+        </div>
+
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+    </form>
+</div>
