@@ -356,7 +356,8 @@ class Modules_XveLaravelKit_Task_Deploy extends pm_LongTask_Task
                 $status,
                 $settings->getBranch(),
                 $commitInfo,
-                $error
+                $error,
+                $settings->getRepoWebUrl()
             );
         } catch (\Throwable $e) {
             pm_Log::warn('Teams notification failed: ' . $e->getMessage());
