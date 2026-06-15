@@ -22,8 +22,14 @@ class Modules_XveLaravelKit_Form_Settings extends pm_Form_Simple
             'required' => true,
             'validators' => [
                 ['NotEmpty', true],
+                ['Callback', false, [
+                    'callback' => ['Modules_XveLaravelKit_DeploySettings', 'validateRepoUrl'],
+                    'messages' => [
+                        Zend_Validate_Callback::INVALID_VALUE => 'Repository URL must be an SSH URL to an allowed GitHub org, e.g. git@github.com:your-org/your-repo.git',
+                    ],
+                ]],
             ],
-            'description' => 'SSH (git@github.com:user/repo.git) or HTTPS for public repos',
+            'description' => 'SSH URL to an allowed GitHub repo only, e.g. git@github.com:your-org/your-repo.git',
         ]);
 
         $this->addElement('text', 'branch', [
@@ -122,6 +128,13 @@ class Modules_XveLaravelKit_Form_Settings extends pm_Form_Simple
             'value' => $this->_settings->isTeamsNotifyEnabled() ? '1' : '0',
             'checked' => $this->_settings->isTeamsNotifyEnabled(),
             'description' => 'Send deploy status (success/failure) to the Teams webhook configured in the extension settings',
+        ]);
+
+        $this->addElement('checkbox', 'webhook_allow_force', [
+            'label' => 'Allow webhook force-deploy',
+            'value' => $this->_settings->isWebhookForceAllowed() ? '1' : '0',
+            'checked' => $this->_settings->isWebhookForceAllowed(),
+            'description' => 'Permit a webhook call with {"force": true} to cancel an in-progress deploy and start a new one. Leave off unless your CI needs to pre-empt running deploys.',
         ]);
 
         $this->addElement('text', 'keep_releases', [

@@ -15,6 +15,10 @@ class IndexController extends pm_Controller_Action
         if ($this->getRequest()->isPost()) {
             $webhookUrl = trim($this->getRequest()->getParam('teams_webhook_url', ''));
             Modules_XveLaravelKit_TeamsNotifier::setWebhookUrl($webhookUrl);
+
+            $allowedOwners = $this->getRequest()->getParam('allowed_repo_owners', '');
+            Modules_XveLaravelKit_DeploySettings::setAllowedRepoOwners($allowedOwners);
+
             $this->_status->addMessage('info', 'Settings saved.');
 
             $url = Modules_XveLaravelKit_Url::action('index/settings');
@@ -23,6 +27,7 @@ class IndexController extends pm_Controller_Action
         }
 
         $this->view->teamsWebhookUrl = Modules_XveLaravelKit_TeamsNotifier::getWebhookUrl();
+        $this->view->allowedRepoOwners = implode("\n", Modules_XveLaravelKit_DeploySettings::getAllowedRepoOwners());
     }
 
     public function guideAction()
@@ -79,14 +84,7 @@ class IndexController extends pm_Controller_Action
         // 1. Create Plesk subscription
         try {
             $ip = $this->_getServerIp();
-            $cmd = sprintf(
-                'plesk bin subscription --create %s -owner admin -login %s -passwd %s -ip %s -hosting true 2>&1',
-                escapeshellarg($domainName),
-                escapeshellarg($login),
-                escapeshellarg($password),
-                escapeshellarg($ip)
-            );
-            pm_ApiCli::callSbin('xve-exec.sh', [$cmd]);
+            pm_ApiCli::callSbin('xve-exec.sh', ['plesk-subscription-create', $domainName, $login, $password, $ip]);
         } catch (\Throwable $e) {
             $this->_status->addMessage('error', 'Failed to create subscription: ' . $e->getMessage());
             $url = Modules_XveLaravelKit_Url::action('index/index');

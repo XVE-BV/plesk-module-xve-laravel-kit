@@ -128,6 +128,16 @@ class Modules_XveLaravelKit_DeploySettings
 
     // -- Webhook --
 
+    public function isWebhookForceAllowed()
+    {
+        return (bool) pm_Settings::get($this->_prefix . 'webhook_allow_force', false);
+    }
+
+    public function setWebhookForceAllowed($value)
+    {
+        pm_Settings::set($this->_prefix . 'webhook_allow_force', $value ? '1' : '0');
+    }
+
     public function getWebhookSecret()
     {
         $secret = pm_Settings::get($this->_prefix . 'webhook_secret', '');
@@ -401,6 +411,67 @@ class Modules_XveLaravelKit_DeploySettings
         return $this->getSshKeyDir() . '/id_ed25519.pub';
     }
 
+    // -- Repo URL allowlist --
+    // Only SSH URLs to an admin-configured GitHub org are permitted (security:
+    // trusted repos only). The allowed orgs are an extension-level setting so the
+    // list is never hard-coded in this (public) source tree.
+    const ALLOWED_REPO_HOST = 'github.com';
+    const SETTING_ALLOWED_REPO_OWNERS = 'xlk_allowed_repo_owners';
+
+    /**
+     * The GitHub orgs/owners allowed as deploy sources, configured by an admin in
+     * the extension settings. Stored newline/comma-separated; returns a trimmed
+     * list with empties removed. Empty when nothing has been configured yet.
+     */
+    public static function getAllowedRepoOwners()
+    {
+        $raw = pm_Settings::get(self::SETTING_ALLOWED_REPO_OWNERS, '');
+        $owners = preg_split('/[\s,]+/', (string) $raw, -1, PREG_SPLIT_NO_EMPTY);
+        return array_values(array_unique(array_map('trim', $owners)));
+    }
+
+    public static function setAllowedRepoOwners($value)
+    {
+        pm_Settings::set(self::SETTING_ALLOWED_REPO_OWNERS, trim((string) $value));
+    }
+
+    /**
+     * Validate a git repository URL against the allowlist.
+     * Accepts only scp-style SSH URLs to an allowed owner on the allowed host:
+     *   git@github.com:<allowed-owner>/<repo>(.git)
+     * Rejects HTTPS, other hosts, other owners, traversal, and malformed input.
+     * Fails closed: when no owner has been configured, every URL is rejected.
+     */
+    public static function validateRepoUrl($url)
+    {
+        if (!is_string($url)) {
+            return false;
+        }
+        $url = trim($url);
+        if ($url === '' || strpos($url, "\0") !== false) {
+            return false;
+        }
+        // scp-style: git@HOST:OWNER/REPO(.git)
+        if (!preg_match('#^git@([^:/]+):([^/]+)/([A-Za-z0-9._-]+?)(?:\.git)?$#', $url, $m)) {
+            return false;
+        }
+        $host = $m[1];
+        $owner = $m[2];
+        $repo = $m[3];
+        if ($host !== self::ALLOWED_REPO_HOST) {
+            return false;
+        }
+        $allowedOwners = self::getAllowedRepoOwners();
+        if (empty($allowedOwners) || !in_array($owner, $allowedOwners, true)) {
+            return false;
+        }
+        // repo name must not be empty, '.' or '..'
+        if ($repo === '' || $repo === '.' || $repo === '..') {
+            return false;
+        }
+        return true;
+    }
+
     public function isSshRepo()
     {
         $repo = $this->getGitRepo();
@@ -511,7 +582,7 @@ class Modules_XveLaravelKit_DeploySettings
             'health_check_url', 'health_check_timeout',
             'pre_deploy_script', 'post_deploy_script',
             'current_release', 'last_deploy_time', 'last_deploy_status',
-            'webhook_secret', 'shared_dirs', 'shared_files', 'node_pm', 'node_version', 'deploy_mode', 'teams_notify',
+            'webhook_secret', 'webhook_allow_force', 'shared_dirs', 'shared_files', 'node_pm', 'node_version', 'deploy_mode', 'teams_notify',
             'www_root_set',
         ];
         foreach ($keys as $key) {

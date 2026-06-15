@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.1.0
+
+Security hardening (OPS-25 review). **Breaking:** the webhook no longer accepts the `?secret=` query parameter; callers must send `Authorization: Bearer <secret>`.
+
+- Webhook auth is header-only. Removed the `?secret=` query-string path (it leaked tokens in access/proxy logs and `Referer`); the secret is now read only from `Authorization: Bearer`. The Settings tab shows the token separately for storing in CI secrets
+- Webhook rate limiting: 20 requests per 60s per client IP (`REMOTE_ADDR`), returning HTTP 429 with `Retry-After`; this also throttles secret-guessing
+- Per-domain force gate: a webhook `{"force": true}` (cancel an in-progress deploy) is ignored unless **Allow webhook force-deploy** is enabled for that domain
+- Repository URL allowlist: only SSH URLs to a configured GitHub org (`git@github.com:<your-org>/...`) are accepted, enforced both in the settings form and at deploy time. The allowed orgs are an admin-level extension setting (not hard-coded in this public source); HTTPS and non-listed hosts/owners are rejected
+- SSH host-key pinning: git operations pin GitHub's host keys via a per-domain `known_hosts` with `StrictHostKeyChecking=yes`, replacing the previous `accept-new`
+- Removed the root `eval` wrapper: `sbin/xve-exec.sh` is now an allowlisted argv subcommand dispatcher with no `eval` and no shell interpretation of caller-supplied data; every privileged call site passes its arguments as argv
+
 ## v2.0.4
 
 - Fix deploy crash `Call to undefined method pm_Log::warning()`: Plesk's `pm_Log` exposes `warn()`, not `warning()`. Corrects the v2.0.3 PHP-detection log lines and three pre-existing typos (`TeamsNotifier`, `Task/Deploy`, and a Deployer error path)

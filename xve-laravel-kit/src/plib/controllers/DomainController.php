@@ -182,7 +182,8 @@ class DomainController extends pm_Controller_Action
         $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
         $host = $_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? 'localhost';
         $this->view->webhookUrl = $scheme . '://' . $host
-            . '/modules/xve-laravel-kit/public/webhook.php?secret=' . $secret;
+            . '/modules/xve-laravel-kit/public/webhook.php';
+        $this->view->webhookSecret = $secret;
 
         $this->view->hasComposerAuth = $this->_deployer->hasComposerAuth();
         $this->view->wwwRootSet = $this->_settings->isWwwRootSet();
@@ -202,6 +203,7 @@ class DomainController extends pm_Controller_Action
                 $this->_settings->setStepEnabled($step, (bool) $form->getValue('step_' . $step));
             }
             $this->_settings->setTeamsNotifyEnabled((bool) $form->getValue('teams_notify'));
+            $this->_settings->setWebhookForceAllowed((bool) $form->getValue('webhook_allow_force'));
             $this->_settings->setKeepReleases((int) $form->getValue('keep_releases'));
             $this->_settings->setHealthCheckUrl($form->getValue('health_check_url'));
             $this->_settings->setHealthCheckTimeout((int) $form->getValue('health_check_timeout'));
