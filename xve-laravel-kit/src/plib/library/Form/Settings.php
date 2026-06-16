@@ -129,7 +129,7 @@ class Modules_XveLaravelKit_Form_Settings extends pm_Form_Simple
             'value' => $this->_settings->getKeepReleases(),
             'required' => true,
             'validators' => [
-                ['Int'],
+                ['Int', false],
                 ['Between', false, ['min' => 1, 'max' => 20]],
             ],
             'description' => 'Number of previous releases to keep for rollback (1-20)',
@@ -147,7 +147,7 @@ class Modules_XveLaravelKit_Form_Settings extends pm_Form_Simple
             'value' => $this->_settings->getHealthCheckTimeout(),
             'required' => false,
             'validators' => [
-                ['Int'],
+                ['Int', false],
                 ['Between', false, ['min' => 5, 'max' => 300]],
             ],
         ]);
