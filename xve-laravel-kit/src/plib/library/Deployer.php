@@ -1187,6 +1187,16 @@ class Modules_XveLaravelKit_Deployer
                     break;
                 case 'node_build':
                     $pm = $this->_detectNodePackageManager($releasePath);
+                    $packageJsonPath = $releasePath . '/package.json';
+                    if ($this->_fileManager->fileExists($packageJsonPath)) {
+                        $pkgJson = json_decode($this->_fileManager->fileGetContents($packageJsonPath), true);
+                        if (empty($pkgJson['scripts']['build'])) {
+                            throw new \RuntimeException(
+                                'The "Build frontend assets" deploy step is enabled but package.json has no "build" script. ' .
+                                'Either add a build script to package.json or disable this step in the deploy settings.'
+                            );
+                        }
+                    }
                     $cmd = $pm . ' run build';
                     if ($q && $pm === 'npm') $cmd .= ' --silent';
                     $commands[] = $cmd . ' 2>&1';
