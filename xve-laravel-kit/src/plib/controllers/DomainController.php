@@ -191,7 +191,17 @@ class DomainController extends pm_Controller_Action
         $form = new Modules_XveLaravelKit_Form_Settings($this->_domain, $this->_settings);
 
         if ($this->getRequest()->isPost() && $form->isValid($this->getRequest()->getPost())) {
-            $this->_settings->setGitRepo($form->getValue('git_repo'));
+            // Repo URL allowlist (SSH + an admin-configured GitHub org). Enforced
+            // here rather than via a Zend_Validate_Callback, whose array-options
+            // form mis-binds the callback on this Plesk's Zend build. Deploy-time
+            // enforcement in Deployer is the second layer.
+            $gitRepo = trim((string) $form->getValue('git_repo'));
+            if (!Modules_XveLaravelKit_DeploySettings::validateRepoUrl($gitRepo)) {
+                $this->_status->addMessage('error', 'Repository URL must be an SSH URL to an allowed GitHub org, e.g. git@github.com:your-org/your-repo.git. Add the org under Extension Settings \xe2\x86\x92 Allowed Git Repositories.');
+                $this->view->form = $form;
+                return;
+            }
+            $this->_settings->setGitRepo($gitRepo);
             $this->_settings->setBranch($form->getValue('branch'));
             $this->_settings->setSharedDirs($form->getValue('shared_dirs'));
             $this->_settings->setSharedFiles($form->getValue('shared_files'));

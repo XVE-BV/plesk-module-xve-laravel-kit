@@ -22,12 +22,6 @@ class Modules_XveLaravelKit_Form_Settings extends pm_Form_Simple
             'required' => true,
             'validators' => [
                 ['NotEmpty', true],
-                ['Callback', false, [
-                    'callback' => ['Modules_XveLaravelKit_DeploySettings', 'validateRepoUrl'],
-                    'messages' => [
-                        Zend_Validate_Callback::INVALID_VALUE => 'Repository URL must be an SSH URL to an allowed GitHub org, e.g. git@github.com:your-org/your-repo.git',
-                    ],
-                ]],
             ],
             'description' => 'SSH URL to an allowed GitHub repo only, e.g. git@github.com:your-org/your-repo.git',
         ]);
