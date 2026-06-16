@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.2.1
+
+- Fix `TypeError: array callback must have exactly two members` (Zend Callback.php) when opening/saving a domain's deploy settings. The repo-URL allowlist used a `Zend_Validate_Callback` whose array-options form mis-binds the callback on Plesk's Zend build; the check now runs in the controller instead. Allowlist behaviour is unchanged (SSH + admin-configured GitHub org, enforced again at deploy time)
+
 ## v2.2.0
 
 - Teams deploy notifications are now **Adaptive Cards** (icon + title, fact set, and Open site / View commit actions) sent as the Power Automate Workflows envelope, matching the nassau deployer. **Action required:** the Teams webhook must be a Teams *Workflow* URL ("Post to a channel when a webhook request is received") — legacy Office 365 connector URLs no longer render these cards. Reconfigure the webhook under Extension Settings after upgrading
