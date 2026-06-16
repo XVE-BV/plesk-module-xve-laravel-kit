@@ -14,7 +14,9 @@ services:
       # Live-mount extension source for development
       - ./xve-laravel-kit/src/plib:/usr/local/psa/admin/plib/modules/xve-laravel-kit
       - ./xve-laravel-kit/src/htdocs:/usr/local/psa/admin/htdocs/modules/xve-laravel-kit
-      # Sbin init script — auto-runs on container start via systemd
+      # Sbin dispatcher source — installed (not hand-written) by init-sbin.sh
+      - ./xve-laravel-kit/src/sbin:/opt/xve-sbin:ro
+      # init-sbin script — auto-runs on container start via systemd
       - ./init-sbin.sh:/opt/init-sbin.sh:ro
       - ./init-sbin.service:/etc/systemd/system/init-sbin.service:ro
     cap_add:
