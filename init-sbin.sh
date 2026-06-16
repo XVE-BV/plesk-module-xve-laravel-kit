@@ -26,15 +26,16 @@ fi
 EXT="xve-laravel-kit"
 SCRIPT_NAME="xve-exec.sh"
 
-# Create sbin script (the actual script that runs as root)
+# Install the real sbin dispatcher from the mounted source (NOT a hand-written
+# copy) so the dev container runs the exact allowlisted script that ships.
 SBIN_DIR="/usr/local/psa/admin/sbin/modules/$EXT"
+SBIN_SRC="/opt/xve-sbin/$SCRIPT_NAME"
 mkdir -p "$SBIN_DIR"
-cat > "$SBIN_DIR/$SCRIPT_NAME" << 'SCRIPT'
-#!/bin/bash
-eval "$1"
-SCRIPT
-chmod 0700 "$SBIN_DIR/$SCRIPT_NAME"
-chown root:root "$SBIN_DIR/$SCRIPT_NAME"
+if [ ! -f "$SBIN_SRC" ]; then
+    echo "ERROR: $SBIN_SRC not found. Mount ./xve-laravel-kit/src/sbin to /opt/xve-sbin (see docker-compose.yml)." >&2
+    exit 1
+fi
+install -m 0700 -o root -g root "$SBIN_SRC" "$SBIN_DIR/$SCRIPT_NAME"
 
 # Create bin wrapper (setuid symlink to mod_wrapper, which calls sbin)
 BIN_DIR="/usr/local/psa/admin/bin/modules/$EXT"
