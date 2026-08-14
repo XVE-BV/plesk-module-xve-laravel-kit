@@ -41,39 +41,97 @@ jobs:
             plesk bin extension --install-url https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/xve-laravel-kit-${{ steps.version.outputs.version }}.zip
             ```
 
+      # Mirrors Modules_XveLaravelKit_TeamsNotifier: an Adaptive Card inside the
+      # Power Automate Workflows envelope. The legacy MessageCard / O365
+      # connector format this step used to post is retired by Microsoft, so a
+      # Workflow webhook rejects it and the notification fails (HTTP error ->
+      # curl 22), which is what broke the v2.2.2 release run.
       - name: Notify Teams channel
-        if: env.TEAMS_WEBHOOK_URL != ''
+        # A notification must never fail an already-published release: by this
+        # point the zip is built and the GitHub Release exists.
+        continue-on-error: true
         env:
           TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/xve-laravel-kit-${{ steps.version.outputs.version }}.zip"
-          RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}"
+          if [ -z "${TEAMS_WEBHOOK_URL}" ]; then
+            echo "TEAMS_WEBHOOK_URL is not configured; skipping notification."
+            exit 0
+          fi
 
-          curl -sf -H "Content-Type: application/json" -d '{
-            "@type": "MessageCard",
-            "@context": "http://schema.org/extensions",
-            "themeColor": "0076D7",
-            "summary": "XVE Laravel Kit ${{ github.ref_name }} released",
-            "sections": [{
-              "activityTitle": "XVE Laravel Kit ${{ github.ref_name }}",
-              "activitySubtitle": "New release published",
-              "facts": [
-                { "name": "Tag", "value": "${{ github.ref_name }}" },
-                { "name": "Version", "value": "${{ steps.version.outputs.version }}" },
-                { "name": "Install URL", "value": "'"${DOWNLOAD_URL}"'" }
-              ],
-              "markdown": true
-            }],
-            "potentialAction": [
-              {
-                "@type": "OpenUri",
-                "name": "View Release",
-                "targets": [{ "os": "default", "uri": "'"${RELEASE_URL}"'" }]
-              },
-              {
-                "@type": "OpenUri",
-                "name": "Download ZIP",
-                "targets": [{ "os": "default", "uri": "'"${DOWNLOAD_URL}"'" }]
-              }
-            ]
-          }' "$TEAMS_WEBHOOK_URL"
+          DOWNLOAD_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/xve-laravel-kit-${VERSION}.zip"
+          RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}"
+
+          # Built with jq rather than spliced into a quoted heredoc, so a tag or
+          # URL containing shell/JSON metacharacters cannot corrupt the payload.
+          PAYLOAD=$(jq -n \
+            --arg tag "${GITHUB_REF_NAME}" \
+            --arg version "${VERSION}" \
+            --arg repo "${GITHUB_REPOSITORY}" \
+            --arg time "$(date -u '+%Y-%m-%d %H:%M UTC')" \
+            --arg release_url "${RELEASE_URL}" \
+            --arg download_url "${DOWNLOAD_URL}" \
+            '{
+              type: "message",
+              attachments: [{
+                contentType: "application/vnd.microsoft.card.adaptive",
+                contentUrl: null,
+                content: {
+                  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                  type: "AdaptiveCard",
+                  version: "1.4",
+                  msteams: { width: "Full" },
+                  body: [
+                    {
+                      type: "ColumnSet",
+                      columns: [
+                        {
+                          type: "Column",
+                          width: "auto",
+                          verticalContentAlignment: "Center",
+                          items: [{ type: "TextBlock", text: "📦", size: "ExtraLarge", spacing: "None" }]
+                        },
+                        {
+                          type: "Column",
+                          width: "stretch",
+                          items: [
+                            { type: "TextBlock", text: ("XVE Laravel Kit " + $tag), size: "Large", weight: "Bolder", color: "Good", spacing: "None" },
+                            { type: "TextBlock", text: "New release published", isSubtle: true, spacing: "None", wrap: true }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      type: "FactSet",
+                      separator: true,
+                      facts: [
+                        { title: "Repository", value: $repo },
+                        { title: "Tag", value: $tag },
+                        { title: "Version", value: $version },
+                        { title: "Time", value: $time }
+                      ]
+                    },
+                    {
+                      type: "ActionSet",
+                      actions: [
+                        { type: "Action.OpenUrl", title: "View release", url: $release_url },
+                        { type: "Action.OpenUrl", title: "Download ZIP", url: $download_url }
+                      ]
+                    }
+                  ]
+                }
+              }]
+            }')
+
+          HTTP=$(curl -sS -o /tmp/teams-response.txt -w '%{http_code}' \
+            -H 'Content-Type: application/json' \
+            -d "${PAYLOAD}" \
+            "${TEAMS_WEBHOOK_URL}") || HTTP=""
+          HTTP="${HTTP:-000}"
+
+          echo "Teams webhook responded HTTP ${HTTP}"
+          cat /tmp/teams-response.txt 2>/dev/null || true
+
+          if [ "${HTTP}" -lt 200 ] || [ "${HTTP}" -ge 300 ]; then
+            echo "::warning::Teams notification failed (HTTP ${HTTP}). The release itself published successfully."
+          fi
