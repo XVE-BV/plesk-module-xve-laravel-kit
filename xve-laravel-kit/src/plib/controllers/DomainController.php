@@ -151,6 +151,7 @@ class DomainController extends pm_Controller_Action
 
         $lines = (int) $this->getRequest()->getParam('lines', 200);
         $this->view->logContents = $this->_deployer->getLogContents($lines);
+        $this->view->logPath = $this->_deployer->getLogRelativePath();
         $this->view->lines = $lines;
     }
 
