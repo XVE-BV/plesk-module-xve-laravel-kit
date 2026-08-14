@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.2.2
+
+- Fix the Log tab showing "Log file is empty or does not exist yet" for every app on Monolog's `daily` channel. It read `shared/storage/logs/laravel.log` unconditionally, but the daily channel writes `laravel-Y-m-d.log` and never creates that file — so the tab stayed blank no matter how much the app logged (found on an app writing 3.2 MB/day). The active log is now resolved by picking `laravel.log` when present, otherwise the newest `laravel-Y-m-d.log`, and the tab shows which file it is reading. `Clear Log` truncates that same file, leaving older dated logs intact
+
 ## v2.2.1
 
 - Fix `TypeError: array callback must have exactly two members` (Zend Callback.php) when opening/saving a domain's deploy settings. The repo-URL allowlist used a `Zend_Validate_Callback` whose array-options form mis-binds the callback on Plesk's Zend build; the check now runs in the controller instead. Allowlist behaviour is unchanged (SSH + admin-configured GitHub org, enforced again at deploy time)

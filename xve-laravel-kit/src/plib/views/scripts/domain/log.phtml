@@ -10,7 +10,7 @@
         </button>
     </form>
     <span style="color: #888;">
-        Last <?php echo $this->escape($this->lines); ?> lines of <code>shared/storage/logs/laravel.log</code>
+        Last <?php echo $this->escape($this->lines); ?> lines of <code><?php echo $this->escape($this->logPath); ?></code>
     </span>
 </div>
 

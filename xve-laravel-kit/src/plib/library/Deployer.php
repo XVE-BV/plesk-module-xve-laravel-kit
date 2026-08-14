@@ -714,15 +714,96 @@ class Modules_XveLaravelKit_Deployer
     }
 
     /**
-     * Read the Laravel log file (from shared/storage/logs/).
+     * Pick the active Laravel log file out of a logs-directory listing.
+     *
+     * Static and side-effect free so the selection rules stay unit-testable
+     * without Plesk's filesystem layer.
+     *
+     * @param  string $listing Output of `ls -1r` on the logs directory.
+     * @return string|null Chosen filename, or null when nothing matches.
+     */
+    public static function selectActiveLogFile($listing)
+    {
+        $names = array_filter(array_map('trim', explode("\n", trim((string) $listing))));
+
+        // The `single` channel's file wins when present, regardless of where
+        // the listing happens to place it.
+        if (in_array('laravel.log', $names, true)) {
+            return 'laravel.log';
+        }
+
+        // The pattern keeps unrelated files in this directory
+        // (exchange-rate.log, stock-load.log, ...) out of the picture.
+        $newest = null;
+        foreach ($names as $name) {
+            if (!preg_match('/^laravel-\d{4}-\d{2}-\d{2}\.log$/', $name)) {
+                continue;
+            }
+
+            // The dated names are zero-padded ISO, so a plain string
+            // comparison finds the newest day. Compared explicitly rather
+            // than taking the listing's first match, so the result cannot
+            // depend on how `ls` happened to sort.
+            if ($newest === null || strcmp($name, $newest) > 0) {
+                $newest = $name;
+            }
+        }
+
+        return $newest;
+    }
+
+    /**
+     * Resolve the Laravel log file currently being written.
+     *
+     * The `single` channel writes shared/storage/logs/laravel.log, but the
+     * `daily` channel writes laravel-Y-m-d.log and never creates laravel.log
+     * at all — so hardcoding the single-file name made this tab report
+     * "Log file is empty or does not exist yet" permanently for every app on
+     * the daily channel, no matter how much it was logging.
+     *
+     * @return string|null Absolute path, or null when no Laravel log exists.
+     */
+    private function _resolveLogPath()
+    {
+        $logsDir = $this->_basePath . '/shared/storage/logs';
+
+        try {
+            // `ls` is silenced on a missing directory, so this doubles as the
+            // existence check.
+            $listing = $this->_sbin('ls-1r', [$logsDir]);
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        $name = self::selectActiveLogFile($listing);
+
+        return $name === null ? null : $logsDir . '/' . $name;
+    }
+
+    /**
+     * Path of the active Laravel log relative to the vhost root, for display.
+     */
+    public function getLogRelativePath()
+    {
+        $logPath = $this->_resolveLogPath();
+        if ($logPath === null) {
+            return 'shared/storage/logs/laravel.log';
+        }
+
+        return ltrim(substr($logPath, strlen($this->_basePath)), '/');
+    }
+
+    /**
+     * Read the active Laravel log file (from shared/storage/logs/).
      */
     public function getLogContents($lines = 200)
     {
-        $logPath = $this->_basePath . '/shared/storage/logs/laravel.log';
+        $logPath = $this->_resolveLogPath();
+        if ($logPath === null) {
+            return '';
+        }
+
         try {
-            if (!$this->_fileManager->fileExists($logPath)) {
-                return '';
-            }
             $output = $this->_sbin('tail-n', [(string)(int)$lines, $logPath]);
             return $output;
         } catch (\Throwable $e) {
@@ -731,15 +812,20 @@ class Modules_XveLaravelKit_Deployer
     }
 
     /**
-     * Clear the Laravel log file.
+     * Clear the active Laravel log file.
+     *
+     * On the daily channel this truncates today's file only; older dated
+     * files are left alone so history is not destroyed by a single click.
      */
     public function clearLog()
     {
-        $logPath = $this->_basePath . '/shared/storage/logs/laravel.log';
+        $logPath = $this->_resolveLogPath();
+        if ($logPath === null) {
+            return true;
+        }
+
         try {
-            if ($this->_fileManager->fileExists($logPath)) {
-                $this->_sbin('truncate0', [$logPath]);
-            }
+            $this->_sbin('truncate0', [$logPath]);
             return true;
         } catch (\Throwable $e) {
             return false;
