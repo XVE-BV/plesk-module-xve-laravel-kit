@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.2.3
+
+- Release tooling only — the extension itself is unchanged from v2.2.2. The release workflow's Teams notification still posted the legacy MessageCard / O365 connector format that Microsoft retired, so the webhook rejected it and `curl -sf` failed the entire release run even though the zip had built and the GitHub Release had published (seen on v2.2.2). It now sends the same Adaptive Card / Power Automate Workflows envelope the deploy notifier has used since v2.2.0, builds the payload with `jq` so tags and URLs cannot corrupt it, and can no longer fail the run: a notification problem surfaces as a warning with the HTTP status instead of reddening a good release
+
 ## v2.2.2
 
 - Fix the Log tab showing "Log file is empty or does not exist yet" for every app on Monolog's `daily` channel. It read `shared/storage/logs/laravel.log` unconditionally, but the daily channel writes `laravel-Y-m-d.log` and never creates that file — so the tab stayed blank no matter how much the app logged (found on an app writing 3.2 MB/day). The active log is now resolved by picking `laravel.log` when present, otherwise the newest `laravel-Y-m-d.log`, and the tab shows which file it is reading. `Clear Log` truncates that same file, leaving older dated logs intact
