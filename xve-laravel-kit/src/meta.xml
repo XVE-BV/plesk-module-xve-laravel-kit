@@ -2,7 +2,7 @@
 <module>
     <id>xve-laravel-kit</id>
     <name>XVE Laravel Kit</name>
-    <description>Atomic deployments with rollback, Laravel management tools, .env editor, artisan console, and log viewer. Built for zero-downtime deploys from Git repositories.</description>
+    <description>XVE Laravel Kit turns any Plesk domain into a zero-downtime deployment target for Laravel applications. Each deploy clones your Git repository into a timestamped release directory, installs Composer and Node dependencies, builds frontend assets, runs migrations and artisan optimizations, and only then switches the document root to the new release, so visitors never see a half-finished deploy. Every previous release stays on disk and can be restored with a single click, and the deploy history shows the commit, branch, time and outcome of each run. Day-to-day management no longer needs SSH access: edit the shared .env file, run artisan commands from a built-in console with quick actions for the common ones, read the application log, toggle maintenance mode, and check the health of the installation from the Plesk UI. New sites are created in one step, including the subscription, the SSH deploy key, the release directory layout and the deploy configuration. Deploys can also be triggered from CI through a token-protected webhook, limited to the GitHub organizations you allow, with optional Microsoft Teams notifications when a deploy finishes.</description>
     <category>developer</category>
     <version>2.2.3</version>
     <release>1</release>
