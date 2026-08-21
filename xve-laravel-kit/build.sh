@@ -17,6 +17,10 @@ cp "$SCRIPT_DIR/src/meta.xml" "$BUILD_DIR/$EXT_ID/"
 cp -r "$SCRIPT_DIR/src/plib" "$BUILD_DIR/$EXT_ID/"
 cp -r "$SCRIPT_DIR/src/htdocs" "$BUILD_DIR/$EXT_ID/"
 
+# Catalog assets: icons for Plesk's extension list, screenshots for the
+# Extensions Catalog listing.
+cp -r "$SCRIPT_DIR/src/_meta" "$BUILD_DIR/$EXT_ID/"
+
 # sbin scripts go directly in sbin/ (Plesk places them under sbin/modules/<ext-id>/)
 mkdir -p "$BUILD_DIR/$EXT_ID/sbin"
 cp "$SCRIPT_DIR/src/sbin/xve-exec.sh" "$BUILD_DIR/$EXT_ID/sbin/"
